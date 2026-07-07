@@ -44,17 +44,18 @@ export function SyncBadge() {
   const { cloudEnabled, user, syncStatus, hydrated } = useStore();
 
   if (!hydrated || !cloudEnabled || !user) {
+    const signedOut = hydrated && cloudEnabled;
     return (
       <span
         className="flex items-center gap-1.5 text-[11px] text-mist-500"
         title={
-          cloudEnabled
+          signedOut
             ? "Sign in from Settings to sync across devices — everything is saved on this device."
             : "Cloud sync is not configured — everything is saved on this device."
         }
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-        Local mode
+        <span className={`h-1.5 w-1.5 rounded-full ${signedOut ? "bg-mist-500" : "bg-amber-400"}`} />
+        {signedOut ? "Not signed in" : "Local mode"}
       </span>
     );
   }
