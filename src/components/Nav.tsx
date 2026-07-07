@@ -116,7 +116,7 @@ function SidebarContent() {
           {hauls.slice(0, 5).map((h) => (
             <Link
               key={h.id}
-              href="/hauls"
+              href={`/hauls?focus=${h.id}`}
               className="group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs text-mist-400 transition-colors hover:bg-white/5 hover:text-mist-100"
             >
               <span

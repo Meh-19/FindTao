@@ -5,10 +5,26 @@ import { Nav } from "@/components/Nav";
 import { CartPanel } from "@/components/CartPanel";
 import { Topbar, StatusBar, BottomNav, Toasts } from "@/components/Chrome";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const DESCRIPTION =
+  "Browse Taobao, Weidian, 1688 and Xianyu finds from anywhere. Plan hauls, check QC photos, and hand off to your shopping agent in one click.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "FindTao — find it, QC it, hand it to your agent",
-  description:
-    "Browse Taobao, Weidian, 1688 and Xianyu finds from anywhere. Plan hauls, check QC photos, and hand off to your shopping agent in one click.",
+  description: DESCRIPTION,
+  openGraph: {
+    title: "FindTao",
+    description: DESCRIPTION,
+    url: SITE_URL,
+    siteName: "FindTao",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "FindTao",
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -20,10 +20,19 @@ npm run build    # production build
 | Link engine (parse any marketplace/agent link → convert to any agent) | `src/lib/links.ts` | Working, tested |
 | Agent registry (data-driven, add agents without code changes) | `src/lib/agents.ts` | Working — formats need live verification |
 | Converter tool page | `/convert` | Working |
-| Browse with search + filters (marketplace, QC, trust, price) | `/` | Working on mock catalog |
+| Home (hero, quick actions, featured finds) | `/` | Working |
+| Cross-store search with filters (marketplace, QC, trust, price, wishlist) | `/browse` | Working on mock catalog |
+| Store library with favorites + add-by-URL | `/library` | Working |
+| Community store directory with category search | `/discover` | Working |
+| Store view with album browser (modal photo viewer) | `/store/[id]` | Working, album photos are placeholders |
 | Item page with buy-on-agent split button + QC/trust/fit panels | `/item/[id]` | Working, QC photos are placeholders |
-| Haul builder (pin items, totals, weight estimate, bulk link export) | `/haul` | Working |
-| Settings (preferred agent, currency, one-click hand-off) | `/settings` | Working, localStorage |
+| Multi-haul planner (budgets, weight, bulk link export, deep links) | `/hauls` | Working |
+| Cart panel (dual-currency subtotal, assign to haul, share link) | everywhere | Working |
+| Package tracking with carrier detection → 17TRACK | `/tracking` | Working |
+| Shipping estimator (rate card by weight/region, prefill from haul) | `/shipping` | Working, placeholder rates |
+| Settings (accent, agent, currency, card size, active haul) | `/settings` | Working |
+| Auth + cloud sync (Supabase magic link, debounced push, Sync now) | `src/lib/store.tsx` | Working — needs env keys |
+| Live CNY exchange rates (12h cache, fallback table) | `src/lib/currency.ts` | Working |
 
 ## Verifying agents (do this before launch)
 

@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Check, ExternalLink, Plus, Star } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Check, ExternalLink, Images, Plus, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
+import { storeAlbums, type Album } from "@/data/albums";
+import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
 import { useStore } from "@/lib/store";
 
@@ -13,6 +16,8 @@ export function StoreView({ id }: { id: string }) {
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(id);
+  const albums = useMemo(() => (store ? storeAlbums(store) : []), [store]);
+  const [openAlbum, setOpenAlbum] = useState<Album | null>(null);
 
   if (!hydrated) return null;
   if (!store) {
@@ -88,6 +93,35 @@ export function StoreView({ id }: { id: string }) {
         )}
       </div>
 
+      {albums.length > 0 && (
+        <>
+          <h2 className="mb-4 mt-8 text-sm font-bold uppercase tracking-[0.15em] text-mist-500">
+            Albums ({albums.length})
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {albums.map((album, i) => (
+              <button
+                key={album.id}
+                onClick={() => setOpenAlbum(album)}
+                className="card-pop fade-up overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80 text-left"
+                style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
+              >
+                <div
+                  className="tile-shimmer flex aspect-[4/3] items-center justify-center"
+                  style={{ background: `linear-gradient(135deg, ${album.hue[0]}, ${album.hue[1]})` }}
+                >
+                  <Images size={22} aria-hidden="true" className="text-white/70" />
+                </div>
+                <div className="p-3">
+                  <p className="truncate text-sm font-medium text-mist-100">{album.name}</p>
+                  <p className="mt-0.5 text-[11px] text-mist-500">{album.photoCount} photos</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <h2 className="mb-4 mt-8 text-sm font-bold uppercase tracking-[0.15em] text-mist-500">
         Indexed items ({items.length})
       </h2>
@@ -102,6 +136,8 @@ export function StoreView({ id }: { id: string }) {
           ))}
         </div>
       )}
+
+      {openAlbum && <AlbumModal store={store} album={openAlbum} onClose={() => setOpenAlbum(null)} />}
     </div>
   );
 }

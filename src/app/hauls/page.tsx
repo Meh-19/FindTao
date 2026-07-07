@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Pencil, Plus, X } from "lucide-react";
 import { getItem, itemLink, CATEGORY_WEIGHT_G } from "@/data/catalog";
 import { Thumb } from "@/components/Thumb";
@@ -11,7 +12,7 @@ import { toAgentUrl } from "@/lib/links";
 import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { useStore, type Haul } from "@/lib/store";
 
-function HaulCard({ haul }: { haul: Haul }) {
+function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
     prefs, setPrefs, renameHaul, deleteHaul, setHaulBudget, removeFromHaul,
     fmtConverted, toast,
@@ -38,7 +39,12 @@ function HaulCard({ haul }: { haul: Haul }) {
   }
 
   return (
-    <div className={`card-pop fade-up overflow-hidden rounded-2xl border bg-ink-800/80 ${active ? "border-neon-500/50" : "border-white/5"}`}>
+    <div
+      id={`haul-${haul.id}`}
+      className={`card-pop fade-up overflow-hidden rounded-2xl border bg-ink-800/80 scroll-mt-20 ${
+        active ? "border-neon-500/50" : "border-white/5"
+      } ${focused ? "ring-2 ring-neon-400/60" : ""}`}
+    >
       {active && <div className="flow-bg h-0.5" />}
       <div className="p-5">
         <div className="flex flex-wrap items-center gap-2">
@@ -139,9 +145,22 @@ function HaulCard({ haul }: { haul: Haul }) {
   );
 }
 
-export default function HaulsPage() {
+function HaulsView() {
   const { hauls, createHaul, toast, hydrated } = useStore();
   const [newName, setNewName] = useState("");
+  const focus = useSearchParams().get("focus");
+  const [focused, setFocused] = useState<string | null>(null);
+
+  // Sidebar haul links land here as /hauls?focus=<id> — scroll to that haul
+  // and highlight it briefly.
+  useEffect(() => {
+    if (!hydrated || !focus) return;
+    setFocused(focus);
+    const el = document.getElementById(`haul-${focus}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setFocused(null), 2000);
+    return () => clearTimeout(timer);
+  }, [hydrated, focus]);
 
   if (!hydrated) return null;
 
@@ -180,9 +199,17 @@ export default function HaulsPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         {hauls.map((h) => (
-          <HaulCard key={h.id} haul={h} />
+          <HaulCard key={h.id} haul={h} focused={focused === h.id} />
         ))}
       </div>
     </div>
+  );
+}
+
+export default function HaulsPage() {
+  return (
+    <Suspense>
+      <HaulsView />
+    </Suspense>
   );
 }
