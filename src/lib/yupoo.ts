@@ -16,6 +16,8 @@ export interface YupooAlbumsResponse {
 
 export interface YupooPhotosResponse {
   photos: string[];
+  /** Marketplace item links found in the album description, if any. */
+  links?: string[];
 }
 
 export function isValidYupooHost(host: string): boolean {

@@ -8,7 +8,7 @@ import { ACTIVE_AGENTS, getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { useStore } from "@/lib/store";
 import { CopyButton } from "./CopyButton";
 
-export function AgentActions({ link }: { link: ParsedLink }) {
+export function AgentActions({ link, dropUp = false }: { link: ParsedLink; dropUp?: boolean }) {
   const { prefs, applyRef } = useStore();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -48,7 +48,11 @@ export function AgentActions({ link }: { link: ParsedLink }) {
       </div>
 
       {open && (
-        <div className="fade-up absolute right-0 z-10 mt-2 w-64 overflow-hidden rounded-xl border border-ink-500 bg-ink-700 shadow-2xl shadow-black/60">
+        <div
+          className={`fade-up absolute right-0 z-10 max-h-72 w-64 overflow-y-auto rounded-xl border border-ink-500 bg-ink-700 shadow-2xl shadow-black/60 ${
+            dropUp ? "bottom-full mb-2" : "mt-2"
+          }`}
+        >
           {ACTIVE_AGENTS.map((agent) => {
             const url = applyRef(toAgentUrl(link, agent), agent.id);
             if (!url) return null;

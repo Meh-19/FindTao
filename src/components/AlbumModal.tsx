@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Images, X } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Images, Link2, X } from "lucide-react";
 import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
+import { parseLink } from "@/lib/links";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
+import { AgentActions } from "./AgentActions";
 
 /**
  * Album browser — opens as a modal over the store view. Live Yupoo albums
@@ -27,6 +30,7 @@ export function AlbumModal({
   const live = Boolean(host && album.yupooId);
   // null = loading, [] = failed or empty (falls back to placeholder tiles)
   const [photos, setPhotos] = useState<string[] | null>(live ? null : []);
+  const [itemLinks, setItemLinks] = useState<string[]>([]);
 
   useEffect(() => {
     if (!live) return;
@@ -34,7 +38,9 @@ export function AlbumModal({
     fetch(`/api/yupoo/album?host=${encodeURIComponent(host!)}&id=${album.yupooId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: YupooPhotosResponse) => {
-        if (!cancelled) setPhotos(data.photos ?? []);
+        if (cancelled) return;
+        setPhotos(data.photos ?? []);
+        setItemLinks(data.links ?? []);
       })
       .catch(() => {
         if (!cancelled) setPhotos([]);
@@ -43,6 +49,16 @@ export function AlbumModal({
       cancelled = true;
     };
   }, [live, host, album.yupooId]);
+
+  // Sellers often paste the item's marketplace link into the album
+  // description — when one parses, offer the agent hand-off right here.
+  const marketplaceLink = useMemo(() => {
+    for (const raw of itemLinks) {
+      const parsed = parseLink(raw);
+      if (parsed) return parsed;
+    }
+    return null;
+  }, [itemLinks]);
 
   const total = photos && photos.length > 0 ? photos.length : Math.max(album.photoCount, 1);
   const loading = photos === null;
@@ -154,6 +170,24 @@ export function AlbumModal({
             </p>
           )}
         </div>
+
+        {marketplaceLink && (
+          <div className="shrink-0 border-t border-white/5 px-5 py-3.5">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <AgentActions link={marketplaceLink} dropUp />
+              </div>
+              <Link
+                href={`/convert?link=${encodeURIComponent(marketplaceLink.rawUrl)}`}
+                onClick={onClose}
+                aria-label="Open in converter"
+                className="rounded-xl border border-ink-500 p-2.5 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+              >
+                <Link2 size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
 
       {viewer !== null && (

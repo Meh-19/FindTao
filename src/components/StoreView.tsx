@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, ExternalLink, Images, Plus, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
+import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
 import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
@@ -30,6 +31,73 @@ async function fetchAlbums(
     })),
     hasMore: data.hasMore ?? false,
   };
+}
+
+/**
+ * Preview card for marketplace-hosted stores. Weidian shops get their live
+ * name + logo (scraped server-side); Taobao is login-walled, so it stays a
+ * clean hand-off card.
+ */
+function MarketplacePreview({
+  store,
+  label,
+  weidianUserId,
+}: {
+  store: StoreInfo;
+  label: string;
+  weidianUserId?: string;
+}) {
+  const [shop, setShop] = useState<{ name: string; logo: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!weidianUserId) return;
+    let cancelled = false;
+    fetch(`/api/weidian/shop?userid=${weidianUserId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { name: string; logo: string | null }) => {
+        if (!cancelled && data.name) setShop(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [weidianUserId]);
+
+  return (
+    <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/60 p-5">
+      {shop?.logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={shop.logo}
+          alt=""
+          className="h-11 w-11 shrink-0 rounded-xl border border-white/10 object-cover"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-mist-100">
+          {shop ? (
+            <>
+              {shop.name} <span className="font-normal text-mist-500">· live on {label}</span>
+            </>
+          ) : (
+            `${label} store`
+          )}
+        </p>
+        <p className="mt-0.5 text-xs text-mist-500">
+          Listings live on {label} — browse them there, then paste any item link into the
+          converter to hand it to your agent.
+        </p>
+      </div>
+      <a
+        href={store.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+      >
+        Visit on {label} <ExternalLink size={13} aria-hidden="true" />
+      </a>
+    </div>
+  );
 }
 
 export function StoreView({ id }: { id: string }) {
@@ -189,23 +257,11 @@ export function StoreView({ id }: { id: string }) {
       </div>
 
       {(platform.platform === "taobao" || platform.platform === "weidian") && (
-        <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/60 p-5">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-mist-100">{platform.label} store</p>
-            <p className="mt-0.5 text-xs text-mist-500">
-              Listings live on {platform.label} — browse them there, then paste any item link into
-              the converter to hand it to your agent.
-            </p>
-          </div>
-          <a
-            href={store.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
-          >
-            Visit on {platform.label} <ExternalLink size={13} aria-hidden="true" />
-          </a>
-        </div>
+        <MarketplacePreview
+          store={store}
+          label={platform.label}
+          weidianUserId={platform.platform === "weidian" ? platform.weidianUserId : undefined}
+        />
       )}
 
       {yupooHost && liveFailed && (
