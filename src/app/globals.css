@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #08060f;
+  --color-ink-900: #0e0a1a;
+  --color-ink-800: #151024;
+  --color-ink-700: #1d1631;
+  --color-ink-600: #2a2145;
+  --color-ink-500: #3a2f5e;
+  --color-mist-100: #edeaf8;
+  --color-mist-300: #b8b2d0;
+  --color-mist-400: #948dad;
+  --color-mist-500: #746d8f;
+  --color-neon-300: #c4b5fd;
+  --color-neon-400: #a78bfa;
+  --color-neon-500: #8b5cf6;
+  --color-neon-600: #7c3aed;
+  --color-flare-400: #e879f9;
+  --color-flare-500: #d946ef;
+  --color-aqua-300: #67e8f9;
+  --color-aqua-400: #22d3ee;
+}
+
+body {
+  @apply bg-ink-950 text-mist-100 antialiased;
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, rgb(139 92 246 / 0.13), transparent 60%),
+    radial-gradient(50rem 36rem at -15% 25%, rgb(217 70 239 / 0.07), transparent 60%),
+    radial-gradient(46rem 32rem at 55% 115%, rgb(34 211 238 / 0.06), transparent 60%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgb(139 92 246 / 0.45);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2145;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a2f5e;
+}
+
+@keyframes flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-150%) skewX(-18deg); }
+  to { transform: translateX(250%) skewX(-18deg); }
+}
+
+@keyframes drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(4rem, -3rem) scale(1.15); }
+}
+
+@keyframes drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1.1); }
+  50% { transform: translate(-5rem, 3rem) scale(0.95); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Flowing gradient — shared by the top hairline, gradient text, and accents.
+   --acc1..3 are set from the accent setting; violet set is the fallback. */
+:root {
+  --acc1: #8b5cf6;
+  --acc2: #d946ef;
+  --acc3: #22d3ee;
+}
+
+.flow-bg {
+  background-image: linear-gradient(90deg, var(--acc1), var(--acc2), var(--acc3), var(--acc1));
+  background-size: 300% 100%;
+  animation: flow 9s ease-in-out infinite;
+}
+
+.flow-text {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--acc1) 65%, white), color-mix(in srgb, var(--acc2) 70%, white), color-mix(in srgb, var(--acc3) 70%, white), color-mix(in srgb, var(--acc1) 65%, white));
+  background-size: 300% 100%;
+  animation: flow 9s ease-in-out infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.btn-glow {
+  background-image: linear-gradient(135deg, var(--acc1), var(--acc2));
+  background-size: 160% 160%;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--acc1) 35%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.15);
+  transition: box-shadow 0.25s ease, transform 0.15s ease, background-position 0.4s ease;
+}
+.btn-glow:hover {
+  background-position: 100% 100%;
+  box-shadow: 0 0 34px color-mix(in srgb, var(--acc2) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.15);
+  transform: translateY(-1px);
+}
+.btn-glow:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.card-pop {
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.3s ease;
+}
+.card-pop:hover {
+  transform: translateY(-4px);
+  border-color: rgb(139 92 246 / 0.55);
+  box-shadow: 0 10px 44px rgb(139 92 246 / 0.16), 0 2px 12px rgb(0 0 0 / 0.5);
+}
+
+.fade-up {
+  animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tile-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.tile-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.14), transparent);
+  animation: shimmer 3.2s ease-in-out infinite;
+}
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.aurora > i {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+.aurora > i:nth-child(1) {
+  width: 34rem;
+  height: 34rem;
+  top: -12rem;
+  right: -8rem;
+  background: rgb(124 58 237 / 0.22);
+  animation: drift-a 16s ease-in-out infinite;
+}
+.aurora > i:nth-child(2) {
+  width: 28rem;
+  height: 28rem;
+  bottom: -10rem;
+  left: -8rem;
+  background: rgb(217 70 239 / 0.13);
+  animation: drift-b 20s ease-in-out infinite;
+}
+.aurora > i:nth-child(3) {
+  width: 22rem;
+  height: 22rem;
+  top: 40%;
+  left: 55%;
+  background: rgb(34 211 238 / 0.09);
+  animation: drift-a 24s ease-in-out infinite reverse;
+}
+
+.pulse-soft {
+  animation: pulse-soft 2.4s ease-in-out infinite;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.toast-in {
+  animation: toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.cart-panel {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-bg, .flow-text, .tile-shimmer::after, .aurora > i, .fade-up, .pulse-soft {
+    animation: none;
+  }
+}
