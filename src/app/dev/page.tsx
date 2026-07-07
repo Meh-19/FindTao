@@ -25,10 +25,21 @@ function hueFor(name: string): [string, string] {
   return PALETTE[h % PALETTE.length];
 }
 
-/** "https://unionkingdom.x.yupoo.com" → "unionkingdom" */
+const GENERIC_SUBDOMAINS = new Set(["www", "item", "detail", "shop", "world", "h5", "market", "s"]);
+
+/**
+ * Derive a store name from a pasted URL:
+ * yupoo subdomain → "unionkingdom"; taobao/tmall shop subdomain → "shop123";
+ * weidian ?userid= → "weidian-123".
+ */
 function yupooName(url: string): string | null {
-  const m = url.match(/^(?:https?:\/\/)?([a-z0-9-]+)\.x\.yupoo\.com/i);
-  return m ? m[1] : null;
+  const yupoo = url.match(/^(?:https?:\/\/)?([a-z0-9-]+)\.x\.yupoo\.com/i);
+  if (yupoo) return yupoo[1];
+  const tb = url.match(/^(?:https?:\/\/)?([a-z0-9-]+)\.(?:taobao|tmall)\.com/i);
+  if (tb && !GENERIC_SUBDOMAINS.has(tb[1].toLowerCase())) return tb[1];
+  const wd = url.match(/weidian\.com\/?\?(?:.*&)?userid=(\d+)/i);
+  if (wd) return `weidian-${wd[1]}`;
+  return null;
 }
 
 const inputClass =

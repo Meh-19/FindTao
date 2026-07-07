@@ -1,13 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, ExternalLink, Images, Plus, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
 import { storeAlbums, type Album } from "@/data/albums";
+import { detectStorePlatform } from "@/lib/platform";
+import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
 import { useStore } from "@/lib/store";
+
+async function fetchAlbums(
+  host: string,
+  page: number,
+  hue: [string, string],
+): Promise<{ albums: Album[]; hasMore: boolean }> {
+  const res = await fetch(`/api/yupoo/albums?host=${encodeURIComponent(host)}&page=${page}`);
+  if (!res.ok) throw new Error("albums fetch failed");
+  const data = (await res.json()) as YupooAlbumsResponse;
+  return {
+    albums: (data.albums ?? []).map((a) => ({
+      id: `yupoo-${a.id}`,
+      yupooId: a.id,
+      name: a.title,
+      photoCount: a.count,
+      cover: a.cover,
+      hue,
+    })),
+    hasMore: data.hasMore ?? false,
+  };
+}
 
 export function StoreView({ id }: { id: string }) {
   const {
@@ -16,8 +39,64 @@ export function StoreView({ id }: { id: string }) {
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(id);
-  const albums = useMemo(() => (store ? storeAlbums(store) : []), [store]);
   const [openAlbum, setOpenAlbum] = useState<Album | null>(null);
+
+  const platform = useMemo(
+    () => (store ? detectStorePlatform(store.url) : { platform: "other" as const, label: "Web" }),
+    [store],
+  );
+  const yupooHost = platform.platform === "yupoo" ? (platform.yupooHost ?? null) : null;
+
+  // Live Yupoo albums, paged. null = still loading the first page.
+  const [liveAlbums, setLiveAlbums] = useState<Album[] | null>(yupooHost ? null : []);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [liveFailed, setLiveFailed] = useState(false);
+
+  useEffect(() => {
+    if (!yupooHost || !store) return;
+    let cancelled = false;
+    setLiveAlbums(null);
+    setLiveFailed(false);
+    setPage(1);
+    fetchAlbums(yupooHost, 1, store.hue)
+      .then(({ albums, hasMore }) => {
+        if (cancelled) return;
+        setLiveAlbums(albums);
+        setHasMore(hasMore);
+        if (albums.length === 0) setLiveFailed(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLiveAlbums([]);
+        setLiveFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [yupooHost, store]);
+
+  async function loadMore() {
+    if (!yupooHost || !store || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const { albums, hasMore: more } = await fetchAlbums(yupooHost, next, store.hue);
+      setLiveAlbums((prev) => [...(prev ?? []), ...albums]);
+      setHasMore(more && albums.length > 0);
+      setPage(next);
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const placeholderAlbums = useMemo(() => (store ? storeAlbums(store) : []), [store]);
+  const liveMode = yupooHost !== null && !liveFailed;
+  const albums = liveMode ? (liveAlbums ?? []) : platform.platform === "other" ? placeholderAlbums : [];
+  const albumsLoading = liveMode && liveAlbums === null;
 
   if (!hydrated) return null;
   if (!store) {
@@ -77,6 +156,11 @@ export function StoreView({ id }: { id: string }) {
             <span className="rounded-full border border-neon-400/20 bg-neon-500/10 px-2 py-0.5 text-neon-300">
               Trust {store.trust}/100
             </span>
+            {platform.platform !== "other" && (
+              <span className="rounded-full border border-aqua-400/20 bg-aqua-400/10 px-2 py-0.5 text-aqua-300">
+                {platform.label}
+              </span>
+            )}
             <a
               href={store.url}
               target="_blank"
@@ -104,32 +188,109 @@ export function StoreView({ id }: { id: string }) {
         )}
       </div>
 
-      {albums.length > 0 && (
+      {(platform.platform === "taobao" || platform.platform === "weidian") && (
+        <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/60 p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-mist-100">{platform.label} store</p>
+            <p className="mt-0.5 text-xs text-mist-500">
+              Listings live on {platform.label} — browse them there, then paste any item link into
+              the converter to hand it to your agent.
+            </p>
+          </div>
+          <a
+            href={store.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+          >
+            Visit on {platform.label} <ExternalLink size={13} aria-hidden="true" />
+          </a>
+        </div>
+      )}
+
+      {yupooHost && liveFailed && (
+        <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/60 p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-mist-100">Albums unavailable</p>
+            <p className="mt-0.5 text-xs text-mist-500">
+              Couldn&apos;t load this store&apos;s albums from Yupoo right now — browse it directly instead.
+            </p>
+          </div>
+          <a
+            href={store.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+          >
+            Visit on Yupoo <ExternalLink size={13} aria-hidden="true" />
+          </a>
+        </div>
+      )}
+
+      {(albumsLoading || albums.length > 0) && (
         <>
           <h2 className="mb-4 mt-8 text-sm font-bold uppercase tracking-[0.15em] text-mist-500">
-            Albums ({albums.length})
+            Albums {albumsLoading ? "" : `(${albums.length}${hasMore ? "+" : ""})`}
           </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {albums.map((album, i) => (
-              <button
-                key={album.id}
-                onClick={() => setOpenAlbum(album)}
-                className="card-pop fade-up overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80 text-left"
-                style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
-              >
-                <div
-                  className="tile-shimmer flex aspect-[4/3] items-center justify-center"
-                  style={{ background: `linear-gradient(135deg, ${album.hue[0]}, ${album.hue[1]})` }}
+          {albumsLoading ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className="overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80">
+                  <div className="tile-shimmer aspect-[4/3] bg-ink-700" />
+                  <div className="space-y-2 p-3">
+                    <div className="h-3 w-3/4 rounded bg-ink-700" />
+                    <div className="h-2.5 w-1/3 rounded bg-ink-700/70" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {albums.map((album, i) => (
+                <button
+                  key={album.id}
+                  onClick={() => setOpenAlbum(album)}
+                  className="card-pop fade-up overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80 text-left"
+                  style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
                 >
-                  <Images size={22} aria-hidden="true" className="text-white/70" />
-                </div>
-                <div className="p-3">
-                  <p className="truncate text-sm font-medium text-mist-100">{album.name}</p>
-                  <p className="mt-0.5 text-[11px] text-mist-500">{album.photoCount} photos</p>
-                </div>
-              </button>
-            ))}
-          </div>
+                  <div
+                    className="tile-shimmer flex aspect-[4/3] items-center justify-center overflow-hidden"
+                    style={
+                      album.cover && yupooHost
+                        ? undefined
+                        : { background: `linear-gradient(135deg, ${album.hue[0]}, ${album.hue[1]})` }
+                    }
+                  >
+                    {album.cover && yupooHost ? (
+                      <img
+                        src={proxiedImg(album.cover, yupooHost)}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Images size={22} aria-hidden="true" className="text-white/70" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="truncate text-sm font-medium text-mist-100" title={album.name}>
+                      {album.name}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-mist-500">{album.photoCount} photos</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {liveMode && hasMore && !albumsLoading && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="mt-4 w-full rounded-xl border border-ink-500 px-4 py-2.5 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:opacity-60"
+            >
+              {loadingMore ? "Loading…" : "Load more albums"}
+            </button>
+          )}
         </>
       )}
 
@@ -148,7 +309,14 @@ export function StoreView({ id }: { id: string }) {
         </div>
       )}
 
-      {openAlbum && <AlbumModal store={store} album={openAlbum} onClose={() => setOpenAlbum(null)} />}
+      {openAlbum && (
+        <AlbumModal
+          store={store}
+          album={openAlbum}
+          host={openAlbum.yupooId ? yupooHost : null}
+          onClose={() => setOpenAlbum(null)}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { Star } from "lucide-react";
 import { StoreCard } from "@/components/StoreCard";
 import { useStore } from "@/lib/store";
 import { parseLink } from "@/lib/links";
+import { detectStorePlatform } from "@/lib/platform";
 import type { StoreInfo } from "@/data/stores";
 
 const PALETTE: [string, string][] = [
@@ -27,16 +28,17 @@ export default function LibraryPage() {
   }, [allStores, library, favStores, favOnly]);
 
   function addByUrl() {
-    const trimmedName = name.trim();
     const trimmedUrl = url.trim();
+    const info = detectStorePlatform(trimmedUrl);
+    // Yupoo subdomains make a decent default name when none is given.
+    const trimmedName = name.trim() || info.yupooHost || "";
     if (!trimmedName || !trimmedUrl) {
       toast("Give the store a name and a URL", "error");
       return;
     }
     const parsed = parseLink(trimmedUrl);
-    const isYupoo = /yupoo\.com/i.test(trimmedUrl);
-    if (!parsed && !isYupoo && !/^(https?:\/\/)?[\w.-]+\.\w{2,}/.test(trimmedUrl)) {
-      toast("That doesn't look like a valid store URL", "error");
+    if (info.platform === "other" && !parsed && !/^(https?:\/\/)?[\w.-]+\.\w{2,}/.test(trimmedUrl)) {
+      toast("Paste a Yupoo, Taobao, or Weidian store link", "error");
       return;
     }
     const id = `user-${trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
@@ -54,7 +56,13 @@ export default function LibraryPage() {
     submitStore(store);
     setUrl("");
     setName("");
-    toast(`${trimmedName} added to your library`);
+    toast(
+      info.platform === "yupoo"
+        ? `${trimmedName} added — albums load right on the store page`
+        : info.platform === "other"
+          ? `${trimmedName} added to your library`
+          : `${trimmedName} added — it opens on ${info.label} from the store page`,
+    );
   }
 
   if (!hydrated) return null;

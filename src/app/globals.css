@@ -128,7 +128,9 @@ body {
 }
 
 .fade-up {
-  animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* `backwards`, not `both`: a retained end-state transform would make this
+     element the containing block for fixed-position descendants (modals). */
+  animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .tile-shimmer {

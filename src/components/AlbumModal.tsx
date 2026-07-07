@@ -4,22 +4,48 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Images, X } from "lucide-react";
 import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
+import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
 
 /**
- * Album browser — opens as a modal over the store view. Photo tiles are
- * gradient placeholders until the real image pipeline lands; the grid → full
- * viewer interaction (click, arrows, Esc) is the final behavior.
+ * Album browser — opens as a modal over the store view. Live Yupoo albums
+ * fetch their real photos through the scraping API; placeholder albums fall
+ * back to gradient tiles. Grid → full viewer with arrows/Esc.
  */
 export function AlbumModal({
   store,
   album,
+  host,
   onClose,
 }: {
   store: StoreInfo;
   album: Album;
+  /** Yupoo subdomain when this store's albums are live; null for placeholders. */
+  host: string | null;
   onClose: () => void;
 }) {
   const [viewer, setViewer] = useState<number | null>(null);
+  const live = Boolean(host && album.yupooId);
+  // null = loading, [] = failed or empty (falls back to placeholder tiles)
+  const [photos, setPhotos] = useState<string[] | null>(live ? null : []);
+
+  useEffect(() => {
+    if (!live) return;
+    let cancelled = false;
+    fetch(`/api/yupoo/album?host=${encodeURIComponent(host!)}&id=${album.yupooId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: YupooPhotosResponse) => {
+        if (!cancelled) setPhotos(data.photos ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPhotos([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [live, host, album.yupooId]);
+
+  const total = photos && photos.length > 0 ? photos.length : Math.max(album.photoCount, 1);
+  const loading = photos === null;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -29,13 +55,13 @@ export function AlbumModal({
         else setViewer(null);
       }
       if (viewer !== null) {
-        if (e.key === "ArrowRight") setViewer((v) => ((v ?? 0) + 1) % album.photoCount);
-        if (e.key === "ArrowLeft") setViewer((v) => ((v ?? 0) - 1 + album.photoCount) % album.photoCount);
+        if (e.key === "ArrowRight") setViewer((v) => ((v ?? 0) + 1) % total);
+        if (e.key === "ArrowLeft") setViewer((v) => ((v ?? 0) - 1 + total) % total);
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [viewer, album.photoCount, onClose]);
+  }, [viewer, total, onClose]);
 
   // Lock page scroll while the modal is open.
   useEffect(() => {
@@ -46,12 +72,18 @@ export function AlbumModal({
     };
   }, []);
 
-  function tile(i: number) {
+  function tileStyle(i: number) {
     const angle = 100 + ((i * 47) % 160);
     return {
       background: `linear-gradient(${angle}deg, ${album.hue[0]}${i % 2 ? "cc" : "99"}, ${album.hue[1]}${i % 3 ? "bb" : "88"}), #151024`,
     };
   }
+
+  const gridItems = loading
+    ? Array.from({ length: Math.min(album.photoCount || 8, 12) }, () => null)
+    : photos!.length > 0
+      ? photos!
+      : Array.from({ length: total }, () => null);
 
   return (
     <div
@@ -77,7 +109,7 @@ export function AlbumModal({
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-mist-100">{album.name}</p>
               <p className="text-[11px] text-mist-500">
-                {store.name} · {album.photoCount} photos
+                {store.name} · {loading ? "loading…" : `${total} photos`}
               </p>
             </div>
           </div>
@@ -92,19 +124,35 @@ export function AlbumModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {Array.from({ length: album.photoCount }, (_, i) => (
+            {gridItems.map((photo, i) => (
               <button
                 key={i}
-                onClick={() => setViewer(i)}
+                onClick={() => !loading && setViewer(i)}
                 aria-label={`Open photo ${i + 1}`}
-                className="tile-shimmer aspect-square rounded-lg border border-white/5 transition-transform duration-200 hover:scale-[1.03]"
-                style={tile(i)}
-              />
+                className="tile-shimmer aspect-square overflow-hidden rounded-lg border border-white/5 transition-transform duration-200 hover:scale-[1.03]"
+                style={photo ? undefined : tileStyle(i)}
+              >
+                {photo && (
+                  <img
+                    src={proxiedImg(photo, host!)}
+                    alt={`${album.name} photo ${i + 1}`}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                )}
+              </button>
             ))}
           </div>
-          <p className="mt-4 text-center text-[11px] text-mist-500">
-            Placeholder tiles — real Yupoo photos land with the data pipeline.
-          </p>
+          {!live && (
+            <p className="mt-4 text-center text-[11px] text-mist-500">
+              Placeholder tiles — live photos load for Yupoo stores.
+            </p>
+          )}
+          {live && !loading && photos!.length === 0 && (
+            <p className="mt-4 text-center text-[11px] text-mist-500">
+              Couldn&apos;t load this album&apos;s photos — open the store on Yupoo instead.
+            </p>
+          )}
         </div>
       </div>
 
@@ -123,7 +171,7 @@ export function AlbumModal({
             <div className="flex items-center justify-between px-4 py-3">
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.15em] text-mist-400">
                 <Images size={13} aria-hidden="true" />
-                {album.name} · {viewer + 1} / {album.photoCount}
+                {album.name} · {viewer + 1} / {total}
               </p>
               <button
                 onClick={() => setViewer(null)}
@@ -133,21 +181,32 @@ export function AlbumModal({
                 <X size={16} aria-hidden="true" />
               </button>
             </div>
-            <div className="tile-shimmer flex aspect-square items-center justify-center" style={tile(viewer)}>
-              <span className="rounded-full bg-black/50 px-4 py-1.5 text-xs text-white/80">
-                Photo placeholder
-              </span>
+            <div
+              className="flex aspect-square items-center justify-center bg-ink-950"
+              style={photos && photos[viewer] ? undefined : tileStyle(viewer)}
+            >
+              {photos && photos[viewer] ? (
+                <img
+                  src={proxiedImg(photos[viewer], host!)}
+                  alt={`${album.name} photo ${viewer + 1}`}
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : (
+                <span className="rounded-full bg-black/50 px-4 py-1.5 text-xs text-white/80">
+                  Photo placeholder
+                </span>
+              )}
             </div>
             <div className="flex items-center justify-between px-4 py-3">
               <button
-                onClick={() => setViewer((viewer - 1 + album.photoCount) % album.photoCount)}
+                onClick={() => setViewer((viewer - 1 + total) % total)}
                 className="flex items-center gap-1 rounded-lg border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
               >
                 <ChevronLeft size={13} aria-hidden="true" /> Prev
               </button>
               <span className="text-[11px] text-mist-500">Esc to close · arrows to flip</span>
               <button
-                onClick={() => setViewer((viewer + 1) % album.photoCount)}
+                onClick={() => setViewer((viewer + 1) % total)}
                 className="flex items-center gap-1 rounded-lg border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
               >
                 Next <ChevronRight size={13} aria-hidden="true" />

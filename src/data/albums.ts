@@ -4,8 +4,12 @@ export interface Album {
   id: string;
   name: string;
   photoCount: number;
-  /** Gradient seeds for the cover and photo tiles — swapped for real images later. */
+  /** Gradient seeds for placeholder tiles (used when no live photos exist). */
   hue: [string, string];
+  /** Yupoo album id — present on live albums, enables real photo fetching. */
+  yupooId?: string;
+  /** Cover image URL (photo.yupoo.com) for live albums. */
+  cover?: string | null;
 }
 
 const ALBUM_NAMES: Record<StoreCategory, string[]> = {
