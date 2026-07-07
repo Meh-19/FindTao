@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { CloudUpload, LogOut } from "lucide-react";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { CURRENCIES, type Currency } from "@/lib/currency";
@@ -27,12 +26,10 @@ function Section({ title, blurb, children }: { title: string; blurb: string; chi
 
 function AccountSection() {
   const {
-    cloudEnabled, user, syncStatus, lastSyncAt, signInWithEmail, signOut, syncNow,
-    profileTags, tagDefs,
+    cloudEnabled, user, profileName, syncStatus, lastSyncAt, signOut, syncNow,
+    profileTags, tagDefs, setAuthOpen,
   } = useStore();
   const roleDefs = tagDefs.filter((t) => t.kind === "user" && profileTags.includes(t.name));
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
 
   if (!cloudEnabled) {
     return (
@@ -49,38 +46,18 @@ function AccountSection() {
   }
 
   if (!user) {
-    async function send() {
-      const trimmed = email.trim();
-      if (!trimmed || sending) return;
-      setSending(true);
-      const ok = await signInWithEmail(trimmed);
-      if (ok) setEmail("");
-      setSending(false);
-    }
     return (
       <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
         <p className="text-sm font-semibold text-mist-100">Account & cloud sync</p>
         <p className="mt-0.5 text-xs text-mist-500">
-          Sign in with a magic link to sync hauls, library, and settings across devices.
+          Sign in to sync hauls, library, and settings across devices.
         </p>
-        <div className="mt-3 flex gap-2">
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="you@example.com"
-            className="min-w-0 flex-1 rounded-xl border border-ink-500 bg-ink-900 px-3 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
-          />
-          <button
-            onClick={send}
-            disabled={sending}
-            className="btn-glow rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {sending ? "Sending…" : "Send link"}
-          </button>
-        </div>
+        <button
+          onClick={() => setAuthOpen(true)}
+          className="btn-glow mt-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          Sign in / Create account
+        </button>
       </div>
     );
   }
@@ -89,11 +66,11 @@ function AccountSection() {
     <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
       <div className="flex items-center gap-3">
         <span className="flow-bg flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
-          {(user.email ?? "?").slice(0, 1).toUpperCase()}
+          {(profileName ?? user.email ?? "?").slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-semibold text-mist-100">
-            {user.email}
+            {profileName ?? user.email}
             {roleDefs.map((t) => (
               <span
                 key={t.id}
@@ -129,6 +106,42 @@ function AccountSection() {
         >
           <LogOut size={14} aria-hidden="true" /> Sign out
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ReferralSection() {
+  const { prefs, setPrefs } = useStore();
+
+  function setCode(agentId: string, code: string) {
+    const next = { ...prefs.myRefs };
+    if (code.trim()) next[agentId] = code.trim();
+    else delete next[agentId];
+    setPrefs({ myRefs: next });
+  }
+
+  return (
+    <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+      <p className="text-sm font-semibold text-mist-100">Your referral codes</p>
+      <p className="mt-0.5 text-xs text-mist-500">
+        Added to agent links you open, copy, or share — earning you the referral instead of the
+        site. Paste the full parameter, e.g.{" "}
+        <code className="rounded bg-ink-900 px-1">partnercode=YOURCODE</code>. Leave blank to use
+        the site default.
+      </p>
+      <div className="mt-3 space-y-2">
+        {ACTIVE_AGENTS.map((a) => (
+          <label key={a.id} className="flex items-center gap-2 text-xs text-mist-400">
+            <span className="w-24 shrink-0 truncate">{a.name}</span>
+            <input
+              value={prefs.myRefs[a.id] ?? ""}
+              onChange={(e) => setCode(a.id, e.target.value)}
+              placeholder="param=code"
+              className="min-w-0 flex-1 rounded-lg border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-mist-100 placeholder-mist-500/60 outline-none transition-colors focus:border-neon-500"
+            />
+          </label>
+        ))}
       </div>
     </div>
   );
@@ -258,6 +271,8 @@ export default function SettingsPage() {
         </label>
 
         <AccountSection />
+
+        <ReferralSection />
 
         <p className="text-xs text-mist-500">
           Outbound agent links may include our referral code, which funds the site. It never

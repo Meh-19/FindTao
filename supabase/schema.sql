@@ -26,16 +26,18 @@ create policy "update own state" on public.user_state for update using (auth.uid
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text,
+  username text,
   tags text[] not null default '{}',
   created_at timestamptz not null default now()
 );
+alter table public.profiles add column if not exists username text;
 alter table public.profiles enable row level security;
 
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (user_id, email)
-  values (new.id, new.email)
+  insert into public.profiles (user_id, email, username)
+  values (new.id, new.email, new.raw_user_meta_data ->> 'username')
   on conflict (user_id) do nothing;
   return new;
 end $$;
@@ -100,6 +102,26 @@ insert into public.tag_defs (kind, name, color) values
   ('user', 'admin', '#ef4444'),
   ('user', 'beta', '#8b5cf6')
 on conflict (kind, name) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Site-default referral codes per agent, set from the dev panel. Stored as a
+-- full query fragment (e.g. 'partnercode=FINDTAO') appended to agent links.
+-- A user's own code from Settings overrides the default in links they build.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.agent_refs (
+  agent_id text primary key,
+  code text not null default ''
+);
+alter table public.agent_refs enable row level security;
+
+drop policy if exists "anyone reads agent refs" on public.agent_refs;
+create policy "anyone reads agent refs" on public.agent_refs for select using (true);
+drop policy if exists "admin inserts agent refs" on public.agent_refs;
+create policy "admin inserts agent refs" on public.agent_refs for insert with check (public.is_admin());
+drop policy if exists "admin updates agent refs" on public.agent_refs;
+create policy "admin updates agent refs" on public.agent_refs for update using (public.is_admin());
+drop policy if exists "admin deletes agent refs" on public.agent_refs;
+create policy "admin deletes agent refs" on public.agent_refs for delete using (public.is_admin());
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Store directory — the community stores everyone sees. Managed from /dev.

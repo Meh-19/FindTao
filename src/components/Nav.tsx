@@ -35,35 +35,47 @@ const LINKS = [
 ];
 
 function AccountFooter() {
-  const { cloudEnabled, user, hydrated } = useStore();
+  const { cloudEnabled, user, profileName, hydrated, setAuthOpen } = useStore();
   const signedIn = hydrated && cloudEnabled && user;
+  const display = signedIn ? (profileName ?? user.email ?? "Account") : "Guest";
 
-  return (
-    <Link
-      href="/settings"
-      className="flex items-center gap-2.5 border-t border-white/5 px-5 py-3.5 transition-colors hover:bg-white/5"
-    >
+  const inner = (
+    <>
       {signedIn ? (
         <span className="flow-bg flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white">
-          {(user.email ?? "?").slice(0, 1).toUpperCase()}
+          {display.slice(0, 1).toUpperCase()}
         </span>
       ) : (
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-600 text-xs text-mist-300">
           G
         </span>
       )}
-      <span className="min-w-0">
-        <span className="block truncate text-xs font-medium text-mist-300">
-          {signedIn ? user.email : "Guest"}
-        </span>
+      <span className="min-w-0 text-left">
+        <span className="block truncate text-xs font-medium text-mist-300">{display}</span>
         <span className="block text-[10px] text-mist-500">
           {signedIn
             ? "Cloud sync on"
             : cloudEnabled
-              ? "Sign in from Settings"
+              ? "Sign in or create account"
               : "Local mode — data stays here"}
         </span>
       </span>
+    </>
+  );
+
+  const cls = "flex w-full items-center gap-2.5 border-t border-white/5 px-5 py-3.5 transition-colors hover:bg-white/5";
+
+  // Signed out → open the auth modal; signed in → manage the account in Settings.
+  if (hydrated && cloudEnabled && !user) {
+    return (
+      <button onClick={() => setAuthOpen(true)} className={cls}>
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <Link href="/settings" className={cls}>
+      {inner}
     </Link>
   );
 }

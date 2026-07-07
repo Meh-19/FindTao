@@ -9,12 +9,12 @@ import { useStore } from "@/lib/store";
 import { CopyButton } from "./CopyButton";
 
 export function AgentActions({ link }: { link: ParsedLink }) {
-  const { prefs } = useStore();
+  const { prefs, applyRef } = useStore();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const preferred = getAgent(prefs.agentId) ?? getAgent(DEFAULT_AGENT_ID)!;
-  const preferredUrl = toAgentUrl(link, preferred);
+  const preferredUrl = applyRef(toAgentUrl(link, preferred), preferred.id);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -50,7 +50,7 @@ export function AgentActions({ link }: { link: ParsedLink }) {
       {open && (
         <div className="fade-up absolute right-0 z-10 mt-2 w-64 overflow-hidden rounded-xl border border-ink-500 bg-ink-700 shadow-2xl shadow-black/60">
           {ACTIVE_AGENTS.map((agent) => {
-            const url = toAgentUrl(link, agent);
+            const url = applyRef(toAgentUrl(link, agent), agent.id);
             if (!url) return null;
             return (
               <a

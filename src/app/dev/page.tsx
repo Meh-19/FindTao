@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Globe, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
+import { BadgeDollarSign, Globe, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
 import { STORE_CATEGORIES, type StoreCategory, type StoreInfo } from "@/data/stores";
+import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore, type TagDef } from "@/lib/store";
 
 const PALETTE: [string, string][] = [
@@ -444,6 +445,55 @@ function TagManager() {
   );
 }
 
+function RefCodeManager() {
+  const { sb, agentRefs, refreshAgentRefs, toast } = useStore();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  function value(agentId: string): string {
+    return draft[agentId] ?? agentRefs[agentId] ?? "";
+  }
+
+  async function save() {
+    if (!sb || busy) return;
+    const rows = ACTIVE_AGENTS.map((a) => ({ agent_id: a.id, code: value(a.id).trim() }));
+    setBusy(true);
+    const { error } = await sb.from("agent_refs").upsert(rows, { onConflict: "agent_id" });
+    if (error) toast(error.message, "error");
+    else {
+      toast("Referral codes saved — live for everyone");
+      setDraft({});
+      await refreshAgentRefs();
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Section
+      icon={BadgeDollarSign}
+      title="Site referral codes"
+      blurb="Appended to every agent link users open or copy — unless they set their own code in Settings. Full parameter format, e.g. partnercode=FINDTAO."
+    >
+      <div className="space-y-2">
+        {ACTIVE_AGENTS.map((a) => (
+          <label key={a.id} className="flex items-center gap-2 text-xs text-mist-400">
+            <span className="w-24 shrink-0 truncate">{a.name}</span>
+            <input
+              value={value(a.id)}
+              onChange={(e) => setDraft((prev) => ({ ...prev, [a.id]: e.target.value }))}
+              placeholder="param=code"
+              className="min-w-0 flex-1 rounded-lg border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-mist-100 placeholder-mist-500/60 outline-none transition-colors focus:border-neon-500"
+            />
+          </label>
+        ))}
+      </div>
+      <button onClick={save} disabled={busy} className="btn-glow mt-3 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {busy ? "Saving…" : "Save codes"}
+      </button>
+    </Section>
+  );
+}
+
 interface ProfileRow {
   user_id: string;
   email: string | null;
@@ -541,6 +591,7 @@ export default function DevPage() {
         <AddStore />
         <BulkAdd />
         <StoreManager />
+        <RefCodeManager />
         <TagManager />
         <UserManager />
       </div>

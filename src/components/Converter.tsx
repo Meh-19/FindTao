@@ -13,7 +13,7 @@ const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688"
 export function Converter() {
   const initial = useSearchParams().get("link") ?? "";
   const [input, setInput] = useState(initial);
-  const { prefs } = useStore();
+  const { prefs, applyRef } = useStore();
 
   const trimmed = input.trim();
   const parsed = useMemo(() => parseLink(trimmed), [trimmed]);
@@ -66,7 +66,7 @@ export function Converter() {
 
           <div className="mt-4 space-y-2">
             {ACTIVE_AGENTS.map((agent, i) => {
-              const url = toAgentUrl(parsed, agent);
+              const url = applyRef(toAgentUrl(parsed, agent), agent.id);
               if (!url) return null;
               const preferred = agent.id === prefs.agentId;
               return (

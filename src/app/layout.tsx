@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { Nav } from "@/components/Nav";
+import { AuthModal } from "@/components/AuthModal";
 import { CartPanel } from "@/components/CartPanel";
 import { Topbar, StatusBar, BottomNav, Toasts } from "@/components/Chrome";
 
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
           <CartPanel />
+          <AuthModal />
           <Toasts />
           <StatusBar />
           <BottomNav />

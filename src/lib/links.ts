@@ -180,6 +180,14 @@ export function parseLink(input: string, depth = 0): ParsedLink | null {
   return null;
 }
 
+/** Append a referral query fragment (e.g. "partnercode=ABC") to a built URL. */
+export function withRef(url: string | null, code: string | null | undefined): string | null {
+  if (!url) return url;
+  const trimmed = code?.trim();
+  if (!trimmed) return url;
+  return url + (url.includes("?") ? "&" : "?") + trimmed.replace(/^[?&]+/, "");
+}
+
 /** Build the agent's product URL for a parsed link. Null if the agent has no template for that marketplace. */
 export function toAgentUrl(link: ParsedLink, agent: AgentConfig): string | null {
   const template = agent.templates[link.marketplace] ?? agent.templates.all;

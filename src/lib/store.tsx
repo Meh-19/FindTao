@@ -6,6 +6,7 @@ import type { Currency, RateTable } from "./currency";
 import { FALLBACK_RATES, convertCny, formatCnyWith, formatMoney } from "./currency";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_AGENT_ID } from "./agents";
+import { withRef } from "./links";
 import { resolveSupabase } from "./supabase";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
@@ -71,6 +72,8 @@ export interface Prefs {
   accent: AccentId;
   autoPrices: boolean;
   activeHaulId: string;
+  /** Personal referral query fragments per agent id — override the site defaults. */
+  myRefs: Record<string, string>;
 }
 
 export interface Haul {
@@ -119,6 +122,7 @@ const DEFAULT_PREFS: Prefs = {
   accent: "violet",
   autoPrices: true,
   activeHaulId: "main",
+  myRefs: {},
 };
 
 const DEFAULT_HAULS: Haul[] = [{ id: "main", name: "Main haul", budgetCny: null, items: [] }];
@@ -187,11 +191,22 @@ interface Store {
   /** The resolved Supabase client, for feature code (dev panel) that needs direct queries. */
   sb: SupabaseClient | null;
   user: CloudUser | null;
+  /** Display name from the profile (set at sign-up); null before it loads. */
+  profileName: string | null;
   syncStatus: SyncStatus;
   lastSyncAt: number | null;
+  authOpen: boolean;
+  setAuthOpen: (open: boolean) => void;
   signInWithEmail: (email: string) => Promise<boolean>;
+  signInWithPassword: (email: string, password: string) => Promise<boolean>;
+  signUp: (email: string, password: string, username: string, agentId?: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  /** Site-default referral fragments per agent id, set from the dev panel. */
+  agentRefs: Record<string, string>;
+  refreshAgentRefs: () => Promise<void>;
+  /** Append the effective referral code (user's own, else site default) to an agent URL. */
+  applyRef: (url: string | null, agentId: string) => string | null;
   /** Community directory from Supabase (admins also see banned rows). */
   directory: StoreInfo[];
   refreshDirectory: () => Promise<void>;
@@ -226,6 +241,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [directory, setDirectory] = useState<StoreInfo[]>([]);
   const [tagDefs, setTagDefs] = useState<TagDef[]>([]);
   const [profileTags, setProfileTags] = useState<string[]>([]);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [agentRefs, setAgentRefs] = useState<Record<string, string>>({});
+  const [authOpen, setAuthOpen] = useState(false);
   // Blocks pushes until the initial pull after sign-in finishes, so local
   // defaults never clobber the cloud copy.
   const pulledRef = useRef(false);
@@ -438,24 +456,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!error && data) setTagDefs(data as TagDef[]);
   }, [sb]);
 
+  const refreshAgentRefs = useCallback(async () => {
+    if (!sb) return;
+    const { data, error } = await sb.from("agent_refs").select("*");
+    if (!error && data) {
+      const map: Record<string, string> = {};
+      for (const row of data as { agent_id: string; code: string }[]) map[row.agent_id] = row.code;
+      setAgentRefs(map);
+    }
+  }, [sb]);
+
   useEffect(() => {
     refreshDirectory();
     refreshTagDefs();
-  }, [refreshDirectory, refreshTagDefs]);
+    refreshAgentRefs();
+  }, [refreshDirectory, refreshTagDefs, refreshAgentRefs]);
 
-  // Role tags on the signed-in user's profile.
+  // Role tags + display name from the signed-in user's profile.
   useEffect(() => {
     if (!sb || !user) {
       setProfileTags([]);
+      setProfileName(null);
       return;
     }
     let cancelled = false;
     sb.from("profiles")
-      .select("tags")
+      .select("tags, username")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled && data?.tags) setProfileTags(data.tags as string[]);
+        if (cancelled || !data) return;
+        if (data.tags) setProfileTags(data.tags as string[]);
+        setProfileName((data.username as string | null) ?? null);
       });
     return () => {
       cancelled = true;
@@ -527,6 +559,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return true;
     },
     [sb, toast],
+  );
+
+  const signInWithPassword = useCallback(
+    async (email: string, password: string) => {
+      if (!sb) return false;
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast(error.message, "error");
+        return false;
+      }
+      toast("Signed in");
+      return true;
+    },
+    [sb, toast],
+  );
+
+  const signUp = useCallback(
+    async (email: string, password: string, username: string, agentId?: string) => {
+      if (!sb) return false;
+      const { data, error } = await sb.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { username },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      if (error) {
+        toast(error.message, "error");
+        return false;
+      }
+      if (agentId) setPrefsState((prev) => ({ ...prev, agentId }));
+      if (data.session) toast(`Welcome, ${username}!`);
+      else toast("Account created — check your email to confirm, then sign in", "info");
+      return true;
+    },
+    [sb, toast],
+  );
+
+  const applyRef = useCallback(
+    (url: string | null, agentId: string) =>
+      withRef(url, prefs.myRefs[agentId]?.trim() || agentRefs[agentId]),
+    [prefs.myRefs, agentRefs],
   );
 
   const signOut = useCallback(async () => {
@@ -628,11 +703,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cloudEnabled: sb !== null,
       sb,
       user,
+      profileName,
       syncStatus,
       lastSyncAt,
+      authOpen,
+      setAuthOpen,
       signInWithEmail,
+      signInWithPassword,
+      signUp,
       signOut,
       syncNow,
+      agentRefs,
+      refreshAgentRefs,
+      applyRef,
       directory,
       refreshDirectory,
       tagDefs,
@@ -647,7 +730,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromHaul, assignCartToHaul, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, toasts, toast,
-      sb, user, syncStatus, lastSyncAt, signInWithEmail, signOut, syncNow,
+      sb, user, profileName, syncStatus, lastSyncAt, authOpen,
+      signInWithEmail, signInWithPassword, signUp, signOut, syncNow,
+      agentRefs, refreshAgentRefs, applyRef,
       directory, refreshDirectory, tagDefs, refreshTagDefs, profileTags, isAdmin,
     ],
   );

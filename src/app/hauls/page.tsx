@@ -15,7 +15,7 @@ import { useStore, type Haul } from "@/lib/store";
 function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
     prefs, setPrefs, renameHaul, deleteHaul, setHaulBudget, removeFromHaul,
-    fmtConverted, toast,
+    fmtConverted, toast, applyRef,
   } = useStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(haul.name);
@@ -29,7 +29,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const budgetPct = haul.budgetCny ? Math.min((totalCny / haul.budgetCny) * 100, 100) : 0;
 
   const exportText = items
-    .map((i) => `${i.title}\n${toAgentUrl(itemLink(i), agent) ?? itemLink(i).rawUrl}`)
+    .map((i) => `${i.title}\n${applyRef(toAgentUrl(itemLink(i), agent), agent.id) ?? itemLink(i).rawUrl}`)
     .join("\n\n");
 
   function saveName() {
