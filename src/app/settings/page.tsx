@@ -26,7 +26,11 @@ function Section({ title, blurb, children }: { title: string; blurb: string; chi
 }
 
 function AccountSection() {
-  const { cloudEnabled, user, syncStatus, lastSyncAt, signInWithEmail, signOut, syncNow } = useStore();
+  const {
+    cloudEnabled, user, syncStatus, lastSyncAt, signInWithEmail, signOut, syncNow,
+    profileTags, tagDefs,
+  } = useStore();
+  const roleDefs = tagDefs.filter((t) => t.kind === "user" && profileTags.includes(t.name));
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -88,7 +92,18 @@ function AccountSection() {
           {(user.email ?? "?").slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-mist-100">{user.email}</p>
+          <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-semibold text-mist-100">
+            {user.email}
+            {roleDefs.map((t) => (
+              <span
+                key={t.id}
+                className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={{ borderColor: `${t.color}99`, background: `${t.color}22`, color: t.color }}
+              >
+                {t.name}
+              </span>
+            ))}
+          </p>
           <p className="text-xs text-mist-500">
             {syncStatus === "syncing"
               ? "Syncing…"

@@ -7,18 +7,23 @@ import type { StoreCategory } from "@/data/stores";
 import { useStore } from "@/lib/store";
 
 export default function DiscoverPage() {
-  const { allStores, hydrated } = useStore();
+  const { directory, hydrated } = useStore();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<StoreCategory | "all">("all");
 
+  const visible = useMemo(
+    () => directory.filter((s) => s.discover !== false && !s.banned),
+    [directory],
+  );
+
   const stores = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return allStores.filter((s) => {
+    return visible.filter((s) => {
       if (category !== "all" && !s.categories.includes(category)) return false;
       if (!q) return true;
-      return `${s.name} ${s.blurb} ${s.categories.join(" ")}`.toLowerCase().includes(q);
+      return `${s.name} ${s.blurb} ${s.categories.join(" ")} ${(s.tags ?? []).join(" ")}`.toLowerCase().includes(q);
     });
-  }, [allStores, query, category]);
+  }, [visible, query, category]);
 
   if (!hydrated) return null;
 
@@ -29,8 +34,8 @@ export default function DiscoverPage() {
           Community <span className="flow-text">stores</span>
         </h1>
         <p className="mt-1 text-sm text-mist-400">
-          {allStores.length} stores in the directory — add the good ones to your library. Submit
-          your own from the Library page.
+          {visible.length} store{visible.length === 1 ? "" : "s"} in the directory — add the good
+          ones to your library. Submit your own from the Library page.
         </p>
       </div>
 

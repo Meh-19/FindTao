@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ArrowRight, Globe, Link2, Search, ShoppingBasket, Sparkles } from "lucide-react";
 import { CATALOG } from "@/data/catalog";
-import { STORES } from "@/data/stores";
 import { ItemCard } from "@/components/ItemCard";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore } from "@/lib/store";
@@ -16,9 +15,10 @@ const ACTIONS = [
 ];
 
 export default function HomePage() {
-  const { library, hydrated } = useStore();
+  const { library, hydrated, directory, allStores } = useStore();
   const featured = CATALOG.slice(0, 4);
-  const communityStores = STORES.filter((s) => s.community);
+  const communityStores = directory.filter((s) => s.discover !== false && !s.banned).slice(0, 8);
+  const savedCount = hydrated ? allStores.filter((s) => library.includes(s.id)).length : 0;
 
   return (
     <div>
@@ -37,8 +37,8 @@ export default function HomePage() {
         </p>
         <div className="mt-6 flex items-center justify-center gap-10 text-center">
           {[
-            { n: CATALOG.length, label: "curated finds" },
-            { n: hydrated ? library.length : STORES.filter((s) => !s.community).length, label: "stores in library" },
+            { n: communityStores.length, label: "community stores" },
+            { n: savedCount, label: "stores in library" },
             { n: ACTIVE_AGENTS.length, label: "agents supported" },
           ].map(({ n, label }) => (
             <div key={label}>
@@ -68,19 +68,21 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section className="mb-12">
-        <div className="mb-4 flex items-end justify-between">
-          <h2 className="text-lg font-bold">Featured finds</h2>
-          <Link href="/browse" className="inline-flex items-center gap-1 text-xs text-neon-300 hover:text-neon-400">
-            See all <ArrowRight size={12} aria-hidden="true" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((item, i) => (
-            <ItemCard key={item.id} item={item} index={i} />
-          ))}
-        </div>
-      </section>
+      {featured.length > 0 && (
+        <section className="mb-12">
+          <div className="mb-4 flex items-end justify-between">
+            <h2 className="text-lg font-bold">Featured finds</h2>
+            <Link href="/browse" className="inline-flex items-center gap-1 text-xs text-neon-300 hover:text-neon-400">
+              See all <ArrowRight size={12} aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {featured.map((item, i) => (
+              <ItemCard key={item.id} item={item} index={i} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="mb-4 flex items-end justify-between">
@@ -89,6 +91,11 @@ export default function HomePage() {
             Discover more <ArrowRight size={12} aria-hidden="true" />
           </Link>
         </div>
+        {communityStores.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-ink-500 px-4 py-10 text-center text-sm text-mist-500">
+            The community directory is filling up — check back soon, or add your own store from the Library page.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {communityStores.map((s, i) => (
             <Link

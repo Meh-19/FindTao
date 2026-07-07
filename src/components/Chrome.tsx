@@ -19,6 +19,7 @@ const VIEW_LABEL: Record<string, string> = {
   settings: "Settings",
   item: "Finds",
   store: "Stores",
+  dev: "Dev panel",
 };
 
 function useCrumbs(): { label: string; href?: string }[] {

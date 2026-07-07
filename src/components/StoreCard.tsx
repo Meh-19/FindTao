@@ -7,7 +7,8 @@ import { storeItems } from "@/data/catalog";
 import { useStore } from "@/lib/store";
 
 export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: number }) {
-  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated } = useStore();
+  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated, tagDefs } = useStore();
+  const storeTagDefs = tagDefs.filter((t) => t.kind === "store" && store.tags?.includes(t.name));
   const saved = hydrated && inLibrary(store.id);
   const fav = hydrated && favStores.includes(store.id);
   const itemCount = storeItems(store.id).length;
@@ -42,6 +43,15 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+        {storeTagDefs.map((t) => (
+          <span
+            key={t.id}
+            className="rounded-full border px-2 py-0.5 font-medium"
+            style={{ borderColor: `${t.color}99`, background: `${t.color}22`, color: t.color }}
+          >
+            {t.name}
+          </span>
+        ))}
         {store.categories.map((c) => (
           <span key={c} className="rounded-full border border-white/5 bg-ink-700 px-2 py-0.5 text-mist-400">
             {c}

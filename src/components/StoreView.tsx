@@ -12,7 +12,7 @@ import { useStore } from "@/lib/store";
 export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
-    favStores, toggleFavStore, toast, hydrated,
+    favStores, toggleFavStore, toast, hydrated, tagDefs,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(id);
@@ -58,6 +58,17 @@ export function StoreView({ id }: { id: string }) {
           </h1>
           <p className="mt-0.5 text-sm text-mist-400">{store.blurb}</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+            {tagDefs
+              .filter((t) => t.kind === "store" && store.tags?.includes(t.name))
+              .map((t) => (
+                <span
+                  key={t.id}
+                  className="rounded-full border px-2 py-0.5 font-medium"
+                  style={{ borderColor: `${t.color}99`, background: `${t.color}22`, color: t.color }}
+                >
+                  {t.name}
+                </span>
+              ))}
             {store.categories.map((c) => (
               <span key={c} className="rounded-full border border-white/5 bg-ink-700 px-2 py-0.5 text-mist-400">
                 {c}

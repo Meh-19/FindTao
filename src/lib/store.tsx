@@ -4,10 +4,52 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from "react";
 import type { Currency, RateTable } from "./currency";
 import { FALLBACK_RATES, convertCny, formatCnyWith, formatMoney } from "./currency";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_AGENT_ID } from "./agents";
-import { supabase } from "./supabase";
+import { resolveSupabase } from "./supabase";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
-import type { StoreInfo } from "@/data/stores";
+import type { StoreCategory, StoreInfo } from "@/data/stores";
+
+/** Always treated as admin, before any profile tags load. */
+export const OWNER_EMAIL = "ren.tipton@icloud.com";
+
+export interface TagDef {
+  id: number;
+  kind: "store" | "user";
+  name: string;
+  color: string;
+}
+
+interface DirectoryRow {
+  id: string;
+  name: string;
+  url: string;
+  categories: string[];
+  tags: string[];
+  blurb: string;
+  hue1: string;
+  hue2: string;
+  trust: number;
+  discover: boolean;
+  banned: boolean;
+}
+
+function rowToStore(row: DirectoryRow): StoreInfo {
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    categories: row.categories as StoreCategory[],
+    hue: [row.hue1, row.hue2],
+    trust: row.trust,
+    blurb: row.blurb,
+    albums: 0,
+    community: true,
+    tags: row.tags,
+    discover: row.discover,
+    banned: row.banned,
+  };
+}
 
 export type CardSize = "s" | "m" | "l";
 export type AccentId = "violet" | "blue" | "emerald" | "rose" | "amber";
@@ -140,14 +182,24 @@ interface Store {
   removeTracking: (number: string) => void;
   toasts: Toast[];
   toast: (msg: string, type?: Toast["type"]) => void;
-  /** False when Supabase env vars aren't configured — sign-in is unavailable. */
+  /** False when Supabase config is unavailable — sign-in is disabled. */
   cloudEnabled: boolean;
+  /** The resolved Supabase client, for feature code (dev panel) that needs direct queries. */
+  sb: SupabaseClient | null;
   user: CloudUser | null;
   syncStatus: SyncStatus;
   lastSyncAt: number | null;
   signInWithEmail: (email: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  /** Community directory from Supabase (admins also see banned rows). */
+  directory: StoreInfo[];
+  refreshDirectory: () => Promise<void>;
+  tagDefs: TagDef[];
+  refreshTagDefs: () => Promise<void>;
+  /** Role-style tags on the signed-in user's profile. */
+  profileTags: string[];
+  isAdmin: boolean;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -170,9 +222,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CloudUser | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [sb, setSb] = useState<SupabaseClient | null>(null);
+  const [directory, setDirectory] = useState<StoreInfo[]>([]);
+  const [tagDefs, setTagDefs] = useState<TagDef[]>([]);
+  const [profileTags, setProfileTags] = useState<string[]>([]);
   // Blocks pushes until the initial pull after sign-in finishes, so local
   // defaults never clobber the cloud copy.
   const pulledRef = useRef(false);
+
+  // Resolve the Supabase client — from build-time env or the /api/env
+  // runtime fallback. Stays null (local-only mode) when neither has keys.
+  useEffect(() => {
+    let cancelled = false;
+    resolveSupabase().then((client) => {
+      if (!cancelled) setSb(client);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setPrefsState({ ...DEFAULT_PREFS, ...read(K.prefs, {}) });
@@ -342,23 +410,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Watch Supabase auth state. No-op in local-only mode.
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
+    if (!sb) return;
+    sb.auth.getSession().then(({ data }) => {
       const u = data.session?.user;
       setUser(u ? { id: u.id, email: u.email ?? null } : null);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
       const u = session?.user;
       setUser(u ? { id: u.id, email: u.email ?? null } : null);
     });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [sb]);
+
+  // Public store directory + tag definitions (no sign-in required to read).
+  const refreshDirectory = useCallback(async () => {
+    if (!sb) return;
+    const { data, error } = await sb
+      .from("store_directory")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (!error && data) setDirectory((data as DirectoryRow[]).map(rowToStore));
+  }, [sb]);
+
+  const refreshTagDefs = useCallback(async () => {
+    if (!sb) return;
+    const { data, error } = await sb.from("tag_defs").select("*").order("id");
+    if (!error && data) setTagDefs(data as TagDef[]);
+  }, [sb]);
+
+  useEffect(() => {
+    refreshDirectory();
+    refreshTagDefs();
+  }, [refreshDirectory, refreshTagDefs]);
+
+  // Role tags on the signed-in user's profile.
+  useEffect(() => {
+    if (!sb || !user) {
+      setProfileTags([]);
+      return;
+    }
+    let cancelled = false;
+    sb.from("profiles")
+      .select("tags")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data?.tags) setProfileTags(data.tags as string[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sb, user]);
 
   // Pull the cloud copy once per sign-in. A missing row means a first-time
   // user — their local state gets pushed by the effect below.
   useEffect(() => {
-    if (!supabase || !user || !hydrated) return;
-    const sb = supabase;
+    if (!sb || !user || !hydrated) return;
     let cancelled = false;
     (async () => {
       setSyncStatus("syncing");
@@ -385,12 +492,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, hydrated]);
+  }, [sb, user?.id, hydrated]);
 
   // Debounced push of every persisted change while signed in.
   useEffect(() => {
-    if (!supabase || !user || !hydrated || !pulledRef.current) return;
-    const sb = supabase;
+    if (!sb || !user || !hydrated || !pulledRef.current) return;
     setSyncStatus("syncing");
     const timer = setTimeout(async () => {
       const { error } = await sb
@@ -404,12 +510,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }, 1500);
     return () => clearTimeout(timer);
-  }, [snapshot, user, hydrated]);
+  }, [sb, snapshot, user, hydrated]);
 
   const signInWithEmail = useCallback(
     async (email: string) => {
-      if (!supabase) return false;
-      const { error } = await supabase.auth.signInWithOtp({
+      if (!sb) return false;
+      const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: window.location.origin },
       });
@@ -420,22 +526,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast("Check your email for the sign-in link", "info");
       return true;
     },
-    [toast],
+    [sb, toast],
   );
 
   const signOut = useCallback(async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (!sb) return;
+    await sb.auth.signOut();
     pulledRef.current = false;
     setSyncStatus("idle");
     setLastSyncAt(null);
     toast("Signed out — your data stays on this device", "info");
-  }, [toast]);
+  }, [sb, toast]);
 
   const syncNow = useCallback(async () => {
-    if (!supabase || !user) return;
+    if (!sb || !user) return;
     setSyncStatus("syncing");
-    const { error } = await supabase
+    const { error } = await sb
       .from("user_state")
       .upsert({ user_id: user.id, data: snapshot, updated_at: new Date().toISOString() });
     if (error) {
@@ -447,9 +553,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setLastSyncAt(Date.now());
       toast("Everything synced to cloud");
     }
-  }, [user, snapshot, toast]);
+  }, [sb, user, snapshot, toast]);
 
-  const allStores = useMemo(() => [...STORES, ...userStores], [userStores]);
+  const allStores = useMemo(
+    () => [...STORES, ...directory, ...userStores],
+    [directory, userStores],
+  );
+
+  const isAdmin = useMemo(
+    () =>
+      user !== null &&
+      (user.email === OWNER_EMAIL ||
+        profileTags.includes("admin") ||
+        profileTags.includes("owner")),
+    [user, profileTags],
+  );
 
   const activeHaul = useMemo(
     () => hauls.find((h) => h.id === prefs.activeHaulId) ?? hauls[0],
@@ -507,13 +625,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeTracking,
       toasts,
       toast,
-      cloudEnabled: supabase !== null,
+      cloudEnabled: sb !== null,
+      sb,
       user,
       syncStatus,
       lastSyncAt,
       signInWithEmail,
       signOut,
       syncNow,
+      directory,
+      refreshDirectory,
+      tagDefs,
+      refreshTagDefs,
+      profileTags,
+      isAdmin,
     }),
     [
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
@@ -522,7 +647,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromHaul, assignCartToHaul, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, toasts, toast,
-      user, syncStatus, lastSyncAt, signInWithEmail, signOut, syncNow,
+      sb, user, syncStatus, lastSyncAt, signInWithEmail, signOut, syncNow,
+      directory, refreshDirectory, tagDefs, refreshTagDefs, profileTags, isAdmin,
     ],
   );
 

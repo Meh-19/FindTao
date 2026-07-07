@@ -16,6 +16,7 @@ import {
   ShoppingBasket,
   Sparkles,
   Star,
+  Wrench,
   X,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -81,13 +82,14 @@ function Logo() {
 /** Nav links + hauls + store list — shared by the desktop sidebar and mobile drawer. */
 function SidebarContent() {
   const pathname = usePathname();
-  const { hauls, prefs, hydrated, allStores, library, favStores } = useStore();
+  const { hauls, prefs, hydrated, allStores, library, favStores, isAdmin } = useStore();
   const libraryStores = hydrated ? allStores.filter((s) => library.includes(s.id)) : [];
+  const links = isAdmin ? [...LINKS, { href: "/dev", label: "Dev", Icon: Wrench }] : LINKS;
 
   return (
     <>
       <nav className="flex flex-col gap-0.5 px-3">
-        {LINKS.map(({ href, label, Icon }) => {
+        {links.map(({ href, label, Icon }) => {
           const active = pathname === href;
           return (
             <Link
