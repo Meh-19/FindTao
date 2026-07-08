@@ -35,15 +35,15 @@ export default function TrackingPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="YT2612345678901234, 1Z…, EA123456789CN…"
-          className="flex-1 rounded-xl border border-ink-500 bg-ink-800/80 px-4 py-2.5 font-mono text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
+          className="flex-1 rounded-none border border-ink-500 bg-ink-800/80 px-4 py-2.5 font-mono text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
         />
-        <button onClick={add} className="btn-glow rounded-xl px-5 py-2.5 text-sm font-semibold text-white">
+        <button onClick={add} className="btn-glow rounded-none px-5 py-2.5 text-sm font-semibold text-white">
           Track
         </button>
       </div>
 
       {tracking.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-ink-500 py-14 text-center text-sm text-mist-400">
+        <div className="mt-6 rounded-none border border-dashed border-ink-500 py-14 text-center text-sm text-mist-400">
           No packages yet. Your agent gives you a tracking number when the parcel ships.
         </div>
       ) : (
@@ -51,7 +51,7 @@ export default function TrackingPage() {
           {tracking.map((p, i) => (
             <div
               key={p.number}
-              className="card-pop fade-up flex items-center gap-3 rounded-xl border border-white/5 bg-ink-800/80 px-4 py-3"
+              className="card-pop fade-up flex items-center gap-3 rounded-none border border-white/5 bg-ink-800/80 px-4 py-3"
               style={{ animationDelay: `${i * 60}ms` }}
             >
               <Package size={18} aria-hidden="true" className="text-mist-400" />
@@ -65,7 +65,7 @@ export default function TrackingPage() {
                 href={track17(p.number)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-glow flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+                className="btn-glow flex items-center gap-1 rounded-none px-3 py-1.5 text-xs font-semibold text-white"
               >
                 17TRACK <ExternalLink size={11} aria-hidden="true" />
               </a>

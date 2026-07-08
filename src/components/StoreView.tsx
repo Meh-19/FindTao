@@ -7,7 +7,7 @@ import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
-import { parsePriceCny } from "@/lib/price";
+import { parsePriceCnyDetailed } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { AlbumModal } from "./AlbumModal";
@@ -66,13 +66,13 @@ function MarketplacePreview({
   }, [weidianUserId]);
 
   return (
-    <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/60 p-5">
+    <div className="mt-8 flex flex-wrap items-center gap-4 rounded-none border border-white/5 bg-ink-800/60 p-5">
       {shop?.logo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={shop.logo}
           alt=""
-          className="h-11 w-11 shrink-0 rounded-xl border border-white/10 object-cover"
+          className="h-11 w-11 shrink-0 rounded-none border border-white/10 object-cover"
         />
       )}
       <div className="min-w-0 flex-1">
@@ -94,7 +94,7 @@ function MarketplacePreview({
         href={store.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+        className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
       >
         Visit on {label} <ExternalLink size={13} aria-hidden="true" />
       </a>
@@ -171,7 +171,7 @@ export function StoreView({ id }: { id: string }) {
   if (!hydrated) return null;
   if (!store) {
     return (
-      <div className="fade-up rounded-2xl border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
+      <div className="fade-up rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
         Store not found. <Link href="/discover" className="text-neon-300 underline">Back to Discover</Link>
       </div>
     );
@@ -186,10 +186,10 @@ export function StoreView({ id }: { id: string }) {
         <ArrowLeft size={14} aria-hidden="true" /> Library
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-none border border-white/5 bg-ink-800/80 p-5">
         <span
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-sm font-bold text-white shadow-lg"
-          style={{ background: `linear-gradient(135deg, ${store.hue[0]}, ${store.hue[1]})` }}
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none text-sm font-bold text-white shadow-hard-sm"
+          style={{ background: "#1a1a1a" }}
         >
           {store.name.slice(0, 2).toUpperCase()}
         </span>
@@ -212,22 +212,22 @@ export function StoreView({ id }: { id: string }) {
               .map((t) => (
                 <span
                   key={t.id}
-                  className="rounded-full border px-2 py-0.5 font-medium"
+                  className="rounded-none border px-2 py-0.5 font-medium"
                   style={{ borderColor: `${t.color}99`, background: `${t.color}22`, color: t.color }}
                 >
                   {t.name}
                 </span>
               ))}
             {store.categories.map((c) => (
-              <span key={c} className="rounded-full border border-white/5 bg-ink-700 px-2 py-0.5 text-mist-400">
+              <span key={c} className="rounded-none border border-white/5 bg-ink-700 px-2 py-0.5 text-mist-400">
                 {c}
               </span>
             ))}
-            <span className="rounded-full border border-neon-400/20 bg-neon-500/10 px-2 py-0.5 text-neon-300">
+            <span className="rounded-none border border-neon-400/20 bg-neon-500/10 px-2 py-0.5 text-neon-300">
               Trust {store.trust}/100
             </span>
             {platform.platform !== "other" && (
-              <span className="rounded-full border border-aqua-400/20 bg-aqua-400/10 px-2 py-0.5 text-aqua-300">
+              <span className="rounded-none border border-aqua-400/20 bg-aqua-400/10 px-2 py-0.5 text-aqua-300">
                 {platform.label}
               </span>
             )}
@@ -244,14 +244,14 @@ export function StoreView({ id }: { id: string }) {
         {saved ? (
           <button
             onClick={() => { removeFromLibrary(store.id); toast(`${store.name} removed from library`, "info"); }}
-            className="flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300"
+            className="flex items-center gap-1.5 rounded-none border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300"
           >
             <Check size={14} aria-hidden="true" /> In library
           </button>
         ) : (
           <button
             onClick={() => { addToLibrary(store.id); toast(`${store.name} added to library`); }}
-            className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+            className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
           >
             <Plus size={14} aria-hidden="true" /> Add to library
           </button>
@@ -267,7 +267,7 @@ export function StoreView({ id }: { id: string }) {
       )}
 
       {yupooHost && liveFailed && (
-        <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/5 bg-ink-800/60 p-5">
+        <div className="mt-8 flex flex-wrap items-center gap-4 rounded-none border border-white/5 bg-ink-800/60 p-5">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-mist-100">Albums unavailable</p>
             <p className="mt-0.5 text-xs text-mist-500">
@@ -278,7 +278,7 @@ export function StoreView({ id }: { id: string }) {
             href={store.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+            className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
           >
             Visit on Yupoo <ExternalLink size={13} aria-hidden="true" />
           </a>
@@ -293,7 +293,7 @@ export function StoreView({ id }: { id: string }) {
           {albumsLoading ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {Array.from({ length: 8 }, (_, i) => (
-                <div key={i} className="overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80">
+                <div key={i} className="overflow-hidden rounded-none border border-white/5 bg-ink-800/80">
                   <div className="tile-shimmer aspect-[4/3] bg-ink-700" />
                   <div className="space-y-2 p-3">
                     <div className="h-3 w-3/4 rounded bg-ink-700" />
@@ -305,12 +305,15 @@ export function StoreView({ id }: { id: string }) {
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {albums.map((album, i) => {
-                const price = parsePriceCny(album.name);
+                // BUG FIX: fall back to a scanned/estimated price instead of
+                // leaving the card with no price info at all.
+                const parsedPrice = parsePriceCnyDetailed(album.name);
+                const price = parsedPrice?.value ?? null;
                 return (
                   <button
                     key={album.id}
                     onClick={() => setOpenAlbum(album)}
-                    className="card-pop fade-up group overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80 text-left"
+                    className="card-pop fade-up group overflow-hidden rounded-none border border-white/5 bg-ink-800/80 text-left"
                     style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
                   >
                     <div
@@ -318,7 +321,7 @@ export function StoreView({ id }: { id: string }) {
                       style={
                         album.cover && yupooHost
                           ? undefined
-                          : { background: `linear-gradient(135deg, ${album.hue[0]}, ${album.hue[1]})` }
+                          : { background: "#1a1a1a" }
                       }
                     >
                       {album.cover && yupooHost ? (
@@ -331,7 +334,7 @@ export function StoreView({ id }: { id: string }) {
                       ) : (
                         <Images size={22} aria-hidden="true" className="text-white/70" />
                       )}
-                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white/85 backdrop-blur-sm">
+                      <span className="absolute bottom-2 right-2 rounded-none bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white/85 backdrop-blur-sm">
                         {album.photoCount} photos
                       </span>
                     </div>
@@ -341,7 +344,12 @@ export function StoreView({ id }: { id: string }) {
                       </p>
                       {price !== null ? (
                         <p className="mt-1.5 text-sm font-semibold tabular-nums text-mist-100">
-                          {formatMoney(price, "CNY")}{" "}
+                          {formatMoney(price, "CNY")}
+                          {parsedPrice?.estimate && (
+                            <span className="ml-1 font-mono text-[9px] font-normal uppercase tracking-wide text-mist-500">
+                              ¥ (est.)
+                            </span>
+                          )}{" "}
                           <span className="flow-text text-xs font-bold">≈ {fmtConverted(price)}</span>
                         </p>
                       ) : (
@@ -357,7 +365,7 @@ export function StoreView({ id }: { id: string }) {
             <button
               onClick={loadMore}
               disabled={loadingMore}
-              className="mt-4 w-full rounded-xl border border-ink-500 px-4 py-2.5 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:opacity-60"
+              className="mt-4 w-full rounded-none border border-ink-500 px-4 py-2.5 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:opacity-60"
             >
               {loadingMore ? "Loading…" : "Load more albums"}
             </button>
@@ -369,7 +377,7 @@ export function StoreView({ id }: { id: string }) {
         Indexed items ({items.length})
       </h2>
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
+        <div className="rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
           Nothing indexed from this store yet — items land here as the catalog pipeline picks them up.
         </div>
       ) : (

@@ -21,7 +21,7 @@ export function Converter() {
 
   return (
     <div className="fade-up mx-auto max-w-2xl">
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neon-500/30 bg-neon-600/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.15em] text-neon-300">
+      <span className="inline-flex items-center gap-1.5 rounded-none border border-neon-500/30 bg-neon-600/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.15em] text-neon-300">
         <Link2 size={12} aria-hidden="true" /> Any link in · every agent out
       </span>
       <h1 className="mt-3 text-3xl font-extrabold tracking-tight">
@@ -36,11 +36,11 @@ export function Converter() {
         onChange={(e) => setInput(e.target.value)}
         rows={3}
         placeholder="https://item.taobao.com/item.htm?id=675330292891"
-        className="mt-5 w-full rounded-xl border border-ink-500 bg-ink-800/80 px-4 py-3 font-mono text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
+        className="mt-5 w-full rounded-none border border-ink-500 bg-ink-800/80 px-4 py-3 font-mono text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
       />
 
       {trimmed.length > 0 && !parsed && (
-        <div className="fade-up mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
+        <div className="fade-up mt-3 rounded-none border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
           {shortLink
             ? "That's a shortened link (tb.cn / youshop10). Open it in a browser first, then paste the full product URL it redirects to."
             : "Couldn't find a product ID in that link. Paste a full product page URL from Taobao, Tmall, Weidian, 1688, or a supported agent."}
@@ -49,7 +49,7 @@ export function Converter() {
 
       {parsed && (
         <div className="fade-up mt-5">
-          <div className="rounded-xl border border-white/5 bg-ink-800/80 px-4 py-3 text-sm">
+          <div className="rounded-none border border-white/5 bg-ink-800/80 px-4 py-3 text-sm">
             <span className="font-semibold text-mist-100">
               {MARKETPLACE_LABEL[parsed.marketplace]}
             </span>{" "}
@@ -57,7 +57,7 @@ export function Converter() {
               · item <span className="font-mono">{parsed.itemId}</span>
             </span>
             <div className="mt-2 flex items-center gap-2">
-              <code className="flex-1 truncate rounded-lg bg-ink-950/80 px-2 py-1.5 text-xs text-mist-300">
+              <code className="flex-1 truncate rounded-none bg-ink-950/80 px-2 py-1.5 text-xs text-mist-300">
                 {parsed.rawUrl}
               </code>
               <CopyButton text={parsed.rawUrl} label="Copy raw" />
@@ -72,7 +72,7 @@ export function Converter() {
               return (
                 <div
                   key={agent.id}
-                  className={`card-pop fade-up flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                  className={`card-pop fade-up flex items-center gap-3 rounded-none border px-4 py-3 ${
                     preferred
                       ? "border-neon-500/50 bg-neon-600/10"
                       : "border-white/5 bg-ink-800/80"
@@ -93,7 +93,7 @@ export function Converter() {
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-glow flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+                    className="btn-glow flex items-center gap-1 rounded-none px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     Open <ExternalLink size={11} aria-hidden="true" />
                   </a>

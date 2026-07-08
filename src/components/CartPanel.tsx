@@ -16,12 +16,12 @@ function LineThumb({ item }: { item: SavedItem }) {
         src={proxiedImg(item.image, item.imgHost)}
         alt=""
         loading="lazy"
-        className="h-14 w-14 shrink-0 rounded-lg border border-white/5 object-cover"
+        className="h-14 w-14 shrink-0 rounded-none border border-white/5 object-cover"
       />
     );
   }
   return (
-    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-ink-700 text-mist-500">
+    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
       <ImageOff size={16} aria-hidden="true" />
     </span>
   );
@@ -101,7 +101,7 @@ export function CartPanel() {
             <button
               onClick={() => setCartOpen(false)}
               aria-label="Close cart"
-              className="rounded-lg px-2 py-1 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
+              className="rounded-none px-2 py-1 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
             >
               <X size={16} aria-hidden="true" />
             </button>
@@ -119,7 +119,7 @@ export function CartPanel() {
               {cart.map((line) => {
                 const href = storeHref(line);
                 return (
-                  <div key={line.id} className="flex gap-3 rounded-xl border border-white/5 bg-ink-800/80 p-2.5">
+                  <div key={line.id} className="flex gap-3 rounded-none border border-white/5 bg-ink-800/80 p-2.5">
                     <LineThumb item={line} />
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-xs font-medium leading-snug text-mist-100" title={line.title}>
@@ -135,7 +135,7 @@ export function CartPanel() {
                         )}
                       </p>
                       <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <div className="flex items-center rounded-lg border border-ink-500">
+                        <div className="flex items-center rounded-none border border-ink-500">
                           <button
                             onClick={() => setCartQty(line.id, line.qty - 1)}
                             aria-label={`Decrease quantity of ${line.title}`}
@@ -195,7 +195,7 @@ export function CartPanel() {
               <select
                 value={targetHaul}
                 onChange={(e) => setTargetHaul(e.target.value)}
-                className="min-w-0 flex-1 rounded-xl border border-ink-500 bg-ink-800 px-3 py-2 text-xs text-mist-100 outline-none focus:border-neon-500"
+                className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-800 px-3 py-2 text-xs text-mist-100 outline-none focus:border-neon-500"
               >
                 {hauls.map((h) => (
                   <option key={h.id} value={h.id}>
@@ -203,13 +203,13 @@ export function CartPanel() {
                   </option>
                 ))}
               </select>
-              <button onClick={assign} className="btn-glow rounded-xl px-4 py-2 text-xs font-semibold text-white">
+              <button onClick={assign} className="btn-glow rounded-none px-4 py-2 text-xs font-semibold text-white">
                 Assign to haul
               </button>
             </div>
             <button
               onClick={shareCart}
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-ink-500 px-4 py-2 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
             >
               <Link2 size={13} aria-hidden="true" />
               Share cart

@@ -25,10 +25,10 @@ const GRID: Record<CardSize, string> = {
 };
 
 const inputClass =
-  "rounded-xl border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
+  "rounded-none border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
 
 const chipClass =
-  "flex cursor-pointer items-center gap-2 rounded-full border border-ink-500 px-3 py-1.5 transition-colors has-checked:border-neon-500/60 has-checked:bg-neon-600/15 has-checked:text-neon-300";
+  "flex cursor-pointer items-center gap-2 rounded-none border border-ink-500 px-3 py-1.5 transition-colors has-checked:border-neon-500/60 has-checked:bg-neon-600/15 has-checked:text-neon-300";
 
 function SearchView() {
   const router = useRouter();
@@ -110,7 +110,7 @@ function SearchView() {
       {pastedLink && (
         <button
           onClick={() => router.push(`/convert?link=${encodeURIComponent(query.trim())}`)}
-          className="fade-up mb-4 block w-full rounded-xl border border-neon-500/40 bg-neon-600/15 px-4 py-3 text-left text-sm text-neon-300 transition-colors hover:bg-neon-600/25"
+          className="fade-up mb-4 block w-full rounded-none border border-neon-500/40 bg-neon-600/15 px-4 py-3 text-left text-sm text-neon-300 transition-colors hover:bg-neon-600/25"
         >
           That looks like a {pastedLink.marketplace} link — open it in the converter →
         </button>
@@ -129,7 +129,7 @@ function SearchView() {
           <input type="checkbox" checked={wishOnly} onChange={(e) => setWishOnly(e.target.checked)} className="accent-violet-500" />
           <Heart size={13} aria-hidden="true" className={wishOnly ? "fill-current" : ""} /> Wishlist only
         </label>
-        <label className="flex items-center gap-2 rounded-full border border-ink-500 px-3 py-1.5">
+        <label className="flex items-center gap-2 rounded-none border border-ink-500 px-3 py-1.5">
           Max ¥
           <input
             type="range"
@@ -148,7 +148,7 @@ function SearchView() {
       </div>
 
       {results.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
+        <div className="rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
           No matches. Loosen a filter, or paste a marketplace link to convert it directly.
         </div>
       ) : (

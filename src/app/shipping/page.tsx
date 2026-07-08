@@ -71,7 +71,7 @@ export default function ShippingPage() {
             step={100}
             value={grams}
             onChange={(e) => setGrams(Number(e.target.value))}
-            className="mt-1 w-full rounded-xl border border-ink-500 bg-ink-800/80 px-3 py-2.5 text-sm text-mist-100 outline-none focus:border-neon-500"
+            className="mt-1 w-full rounded-none border border-ink-500 bg-ink-800/80 px-3 py-2.5 text-sm text-mist-100 outline-none focus:border-neon-500"
           />
         </label>
         <label className="text-xs text-mist-400">
@@ -79,7 +79,7 @@ export default function ShippingPage() {
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-ink-500 bg-ink-800/80 px-3 py-2.5 text-sm text-mist-100 outline-none focus:border-neon-500"
+            className="mt-1 w-full rounded-none border border-ink-500 bg-ink-800/80 px-3 py-2.5 text-sm text-mist-100 outline-none focus:border-neon-500"
           >
             {REGIONS.map((r) => (
               <option key={r.id} value={r.id}>
@@ -93,7 +93,7 @@ export default function ShippingPage() {
           <select
             value={haulId}
             onChange={(e) => loadHaul(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-ink-500 bg-ink-800/80 px-3 py-2.5 text-sm text-mist-100 outline-none focus:border-neon-500"
+            className="mt-1 w-full rounded-none border border-ink-500 bg-ink-800/80 px-3 py-2.5 text-sm text-mist-100 outline-none focus:border-neon-500"
           >
             <option value="">—</option>
             {hauls.map((h) => (
@@ -109,7 +109,7 @@ export default function ShippingPage() {
         {quotes.map((q, i) => (
           <div
             key={q.name}
-            className={`card-pop fade-up flex items-center gap-3 rounded-xl border px-4 py-3 ${
+            className={`card-pop fade-up flex items-center gap-3 rounded-none border px-4 py-3 ${
               i === 0 ? "border-emerald-400/40 bg-emerald-400/5" : "border-white/5 bg-ink-800/80"
             }`}
             style={{ animationDelay: `${i * 60}ms` }}
@@ -118,7 +118,7 @@ export default function ShippingPage() {
               <p className="text-sm font-semibold text-mist-100">
                 {q.name}
                 {i === 0 && (
-                  <span className="ml-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
+                  <span className="ml-2 rounded-none border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
                     Cheapest
                   </span>
                 )}

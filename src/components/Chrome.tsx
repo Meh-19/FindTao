@@ -54,7 +54,7 @@ export function SyncBadge() {
             : "Cloud sync is not configured — everything is saved on this device."
         }
       >
-        <span className={`h-1.5 w-1.5 rounded-full ${signedOut ? "bg-mist-500" : "bg-amber-400"}`} />
+        <span className={`h-1.5 w-1.5 rounded-none ${signedOut ? "bg-mist-500" : "bg-amber-400"}`} />
         {signedOut ? "Not signed in" : "Local mode"}
       </span>
     );
@@ -69,7 +69,7 @@ export function SyncBadge() {
 
   return (
     <span className="flex items-center gap-1.5 text-[11px] text-mist-500" title={user.email ?? undefined}>
-      <span className={`h-1.5 w-1.5 rounded-full ${state.dot}`} />
+      <span className={`h-1.5 w-1.5 rounded-none ${state.dot}`} />
       {state.label}
     </span>
   );
@@ -99,12 +99,12 @@ export function Topbar() {
         <SyncBadge />
         <button
           onClick={() => setCartOpen(true)}
-          className="btn-glow flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-white"
+          className="btn-glow flex items-center gap-2 rounded-none px-4 py-1.5 text-xs font-semibold text-white"
         >
           <ShoppingCart size={13} aria-hidden="true" />
           Cart
           {hydrated && cartCount > 0 && (
-            <span className="rounded-full bg-white/25 px-1.5 py-0.5 text-[10px] font-bold">
+            <span className="rounded-none bg-white/25 px-1.5 py-0.5 text-[10px] font-bold">
               {cartCount}
             </span>
           )}
@@ -178,7 +178,7 @@ export function BottomNav() {
         <ShoppingCart size={18} aria-hidden="true" />
         Cart
         {hydrated && cartCount > 0 && (
-          <span className="absolute right-1/4 top-1 rounded-full bg-neon-600 px-1.5 text-[9px] font-bold text-white">
+          <span className="absolute right-1/4 top-1 rounded-none bg-neon-600 px-1.5 text-[9px] font-bold text-white">
             {cartCount}
           </span>
         )}
@@ -215,7 +215,7 @@ export function Toasts() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`toast-in rounded-xl border bg-ink-800/95 px-4 py-2.5 text-xs font-medium shadow-2xl shadow-black/50 backdrop-blur ${colors[t.type]}`}
+          className={`toast-in rounded-none border bg-ink-800/95 px-4 py-2.5 text-xs font-medium shadow-hard backdrop-blur ${colors[t.type]}`}
         >
           {t.msg}
         </div>

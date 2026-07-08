@@ -23,10 +23,10 @@ export function Thumb({
   return (
     <div
       className={`tile-shimmer flex items-center justify-center ${className}`}
-      style={{ background: `linear-gradient(135deg, ${item.hue[0]}, ${item.hue[1]})` }}
+      style={{ background: "#1a1a1a" }}
     >
       {label && (
-        <span className="rounded-full bg-black/40 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+        <span className="rounded-none bg-black/40 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
           {CATEGORY_LABEL[item.category]}
         </span>
       )}

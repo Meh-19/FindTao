@@ -6,7 +6,7 @@ import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore } from "@/lib/store";
 
 const inputClass =
-  "w-full rounded-xl border border-ink-500 bg-ink-900 px-3.5 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
+  "w-full rounded-none border border-ink-500 bg-ink-900 px-3.5 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
 const labelClass = "block text-xs font-medium text-mist-400";
 
 function PasswordInput({
@@ -93,9 +93,12 @@ export function AuthModal() {
 
   async function magicLink() {
     const mail = email.trim();
-    if (!mail || busy) return;
+    const name = username.trim();
+    // BUG FIX: previously this sent the link with no username at all, so the
+    // account it created had nothing to display and no way to ever get one.
+    if (!mail || !name || busy) return;
     setBusy(true);
-    await signInWithEmail(mail);
+    await signInWithEmail(mail, name);
     setBusy(false);
   }
 
@@ -108,7 +111,7 @@ export function AuthModal() {
       onClick={() => setAuthOpen(false)}
     >
       <div
-        className="fade-up w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-ink-900"
+        className="fade-up w-full max-w-sm overflow-hidden rounded-none border border-white/10 bg-ink-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flow-bg h-0.5" />
@@ -127,7 +130,7 @@ export function AuthModal() {
             <button
               onClick={() => setAuthOpen(false)}
               aria-label="Close"
-              className="rounded-lg p-1.5 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
+              className="rounded-none p-1.5 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
             >
               <X size={16} aria-hidden="true" />
             </button>
@@ -155,6 +158,25 @@ export function AuthModal() {
             {view === "signup" && (
               <label className={labelClass}>
                 Username
+                <input
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="what should we call you?"
+                  className={`${inputClass} mt-1`}
+                />
+              </label>
+            )}
+
+            {/* BUG FIX: also collect a username when signing in — it's
+                required by the magic-link button below (signInWithOtp now
+                stamps it into auth metadata so magic-link accounts get a
+                real username instead of staying blank). Password sign-in
+                ignores this field since the account already has one. */}
+            {view === "signin" && (
+              <label className={labelClass}>
+                Username <span className="text-mist-500">(for the email-link option below)</span>
                 <input
                   type="text"
                   autoComplete="username"
@@ -198,7 +220,7 @@ export function AuthModal() {
             <button
               type="submit"
               disabled={busy}
-              className="btn-glow w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-glow w-full rounded-none px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy ? "One sec…" : view === "signin" ? "Sign in" : "Create account"}
             </button>
@@ -207,8 +229,9 @@ export function AuthModal() {
           {view === "signin" && (
             <button
               onClick={magicLink}
-              disabled={busy}
-              className="mt-2 w-full rounded-xl border border-ink-500 px-4 py-2 text-xs font-medium text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:opacity-60"
+              disabled={busy || !username.trim()}
+              title={!username.trim() ? "Enter a username above first" : undefined}
+              className="mt-2 w-full rounded-none border border-ink-500 px-4 py-2 text-xs font-medium text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Email me a sign-in link instead
             </button>

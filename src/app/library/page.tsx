@@ -78,13 +78,13 @@ export default function LibraryPage() {
             Stores you follow. Favorites get a star and a filter.
           </p>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 rounded-full border border-ink-500 px-3 py-1.5 text-sm text-mist-300 transition-colors has-checked:border-amber-400/60 has-checked:bg-amber-400/10 has-checked:text-amber-300">
+        <label className="flex cursor-pointer items-center gap-2 rounded-none border border-ink-500 px-3 py-1.5 text-sm text-mist-300 transition-colors has-checked:border-amber-400/60 has-checked:bg-amber-400/10 has-checked:text-amber-300">
           <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} className="accent-amber-400" />
           <Star size={13} aria-hidden="true" className={favOnly ? "fill-current" : ""} /> Favorites only
         </label>
       </div>
 
-      <div className="mb-8 rounded-2xl border border-white/5 bg-ink-800/60 p-4">
+      <div className="mb-8 rounded-none border border-white/5 bg-ink-800/60 p-4">
         <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.15em] text-mist-500">
           Add a store by URL
         </p>
@@ -93,22 +93,22 @@ export default function LibraryPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Store name"
-            className="rounded-xl border border-ink-500 bg-ink-900 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500 sm:w-48"
+            className="rounded-none border border-ink-500 bg-ink-900 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500 sm:w-48"
           />
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="weidian.com/?userid=… or a Yupoo album URL"
-            className="flex-1 rounded-xl border border-ink-500 bg-ink-900 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500"
+            className="flex-1 rounded-none border border-ink-500 bg-ink-900 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500"
           />
-          <button onClick={addByUrl} className="btn-glow rounded-xl px-5 py-2.5 text-sm font-semibold text-white">
+          <button onClick={addByUrl} className="btn-glow rounded-none px-5 py-2.5 text-sm font-semibold text-white">
             Add store
           </button>
         </div>
       </div>
 
       {stores.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
+        <div className="rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
           {favOnly ? "No favorites yet — star a store to pin it here." : (
             <>Library is empty. <Link href="/discover" className="text-neon-300 underline">Discover stores</Link> to add some.</>
           )}

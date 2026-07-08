@@ -1,12 +1,13 @@
 "use client";
 
-import { CloudUpload, LogOut } from "lucide-react";
+import { useState } from "react";
+import { CloudUpload, KeyRound, LogOut } from "lucide-react";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { CURRENCIES, type Currency } from "@/lib/currency";
-import { useStore, ACCENTS, type AccentId, type CardSize } from "@/lib/store";
+import { useStore, type CardSize } from "@/lib/store";
 
 const selectClass =
-  "mt-3 w-full rounded-xl border border-ink-500 bg-ink-900 px-3 py-2.5 text-sm text-mist-100 outline-none transition-colors focus:border-neon-500";
+  "mt-3 w-full rounded-none border border-ink-500 bg-ink-900 px-3 py-2.5 text-sm text-mist-100 outline-none transition-colors focus:border-neon-500";
 
 const CARD_SIZES: { id: CardSize; label: string }[] = [
   { id: "s", label: "Small" },
@@ -16,11 +17,50 @@ const CARD_SIZES: { id: CardSize; label: string }[] = [
 
 function Section({ title, blurb, children }: { title: string; blurb: string; children: React.ReactNode }) {
   return (
-    <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+    <div className="card-pop rounded-none border border-white/5 bg-ink-800/80 p-5">
       <p className="text-sm font-semibold text-mist-100">{title}</p>
       <p className="mt-0.5 text-xs text-mist-500">{blurb}</p>
       {children}
     </div>
+  );
+}
+
+function SetPasswordForm() {
+  const { updatePassword, toast } = useStore();
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <form
+      className="mt-3 flex gap-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (pw.length < 6 || busy) {
+          if (pw.length > 0 && pw.length < 6) toast("Password needs at least 6 characters", "error");
+          return;
+        }
+        setBusy(true);
+        const ok = await updatePassword(pw);
+        setBusy(false);
+        if (ok) setPw("");
+      }}
+    >
+      <input
+        type="password"
+        autoComplete="new-password"
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+        placeholder="New password (min 6 chars)"
+        className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
+      />
+      <button
+        type="submit"
+        disabled={busy}
+        className="flex shrink-0 items-center gap-1.5 rounded-none border border-ink-500 px-3 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <KeyRound size={14} aria-hidden="true" /> Set
+      </button>
+    </form>
   );
 }
 
@@ -33,7 +73,7 @@ function AccountSection() {
 
   if (!cloudEnabled) {
     return (
-      <div className="rounded-2xl border border-dashed border-ink-500 p-5">
+      <div className="rounded-none border border-dashed border-ink-500 p-5">
         <p className="text-sm font-semibold text-mist-300">Account & cloud sync</p>
         <p className="mt-0.5 text-xs text-mist-500">
           Cloud sync isn&apos;t configured on this deployment. Copy{" "}
@@ -47,14 +87,14 @@ function AccountSection() {
 
   if (!user) {
     return (
-      <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+      <div className="card-pop rounded-none border border-white/5 bg-ink-800/80 p-5">
         <p className="text-sm font-semibold text-mist-100">Account & cloud sync</p>
         <p className="mt-0.5 text-xs text-mist-500">
           Sign in to sync hauls, library, and settings across devices.
         </p>
         <button
           onClick={() => setAuthOpen(true)}
-          className="btn-glow mt-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+          className="btn-glow mt-3 rounded-none px-4 py-2.5 text-sm font-semibold text-white"
         >
           Sign in / Create account
         </button>
@@ -63,9 +103,9 @@ function AccountSection() {
   }
 
   return (
-    <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+    <div className="card-pop rounded-none border border-white/5 bg-ink-800/80 p-5">
       <div className="flex items-center gap-3">
-        <span className="flow-bg flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
+        <span className="flow-bg flex h-9 w-9 shrink-0 items-center justify-center rounded-none text-sm font-bold text-white">
           {(profileName ?? user.email ?? "?").slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
@@ -74,7 +114,7 @@ function AccountSection() {
             {roleDefs.map((t) => (
               <span
                 key={t.id}
-                className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                className="rounded-none border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                 style={{ borderColor: `${t.color}99`, background: `${t.color}22`, color: t.color }}
               >
                 {t.name}
@@ -96,16 +136,27 @@ function AccountSection() {
         <button
           onClick={syncNow}
           disabled={syncStatus === "syncing"}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <CloudUpload size={14} aria-hidden="true" /> Sync now
         </button>
         <button
           onClick={signOut}
-          className="flex items-center gap-1.5 rounded-xl border border-ink-500 px-4 py-2 text-sm font-medium text-mist-400 transition-colors hover:border-red-400/40 hover:text-red-300"
+          className="flex items-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-sm font-medium text-mist-400 transition-colors hover:border-red-400/40 hover:text-red-300"
         >
           <LogOut size={14} aria-hidden="true" /> Sign out
         </button>
+      </div>
+
+      {/* BUG FIX: accounts created via the email sign-in link had no way to
+          ever get a password, so they were stuck signing in from email only
+          on every device. This lets any signed-in account add or change one. */}
+      <div className="mt-4 border-t border-white/5 pt-4">
+        <p className="text-xs font-medium text-mist-300">Password</p>
+        <p className="mt-0.5 text-xs text-mist-500">
+          Signed in with an email link and want password sign-in too? Set one here.
+        </p>
+        <SetPasswordForm />
       </div>
     </div>
   );
@@ -122,7 +173,7 @@ function ReferralSection() {
   }
 
   return (
-    <div className="card-pop rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+    <div className="card-pop rounded-none border border-white/5 bg-ink-800/80 p-5">
       <p className="text-sm font-semibold text-mist-100">Your referral codes</p>
       <p className="mt-0.5 text-xs text-mist-500">
         Added to agent links you open, copy, or share — earning you the referral instead of the
@@ -138,7 +189,7 @@ function ReferralSection() {
               value={prefs.myRefs[a.id] ?? ""}
               onChange={(e) => setCode(a.id, e.target.value)}
               placeholder="param=code"
-              className="min-w-0 flex-1 rounded-lg border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-mist-100 placeholder-mist-500/60 outline-none transition-colors focus:border-neon-500"
+              className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-mist-100 placeholder-mist-500/60 outline-none transition-colors focus:border-neon-500"
             />
           </label>
         ))}
@@ -161,26 +212,6 @@ export default function SettingsPage() {
       </p>
 
       <div className="mt-6 space-y-5">
-        <Section title="Accent color" blurb="Recolors the flowing gradients across the whole app.">
-          <div className="mt-3 flex gap-2.5">
-            {(Object.keys(ACCENTS) as AccentId[]).map((id) => {
-              const [a, b] = ACCENTS[id];
-              const active = prefs.accent === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => { setPrefs({ accent: id }); toast(`Accent set to ${id}`); }}
-                  aria-label={`${id} accent`}
-                  className={`h-9 w-9 rounded-full transition-all duration-200 ${
-                    active ? "scale-110 ring-2 ring-white/80 ring-offset-2 ring-offset-ink-900" : "hover:scale-105"
-                  }`}
-                  style={{ background: `linear-gradient(135deg, ${a}, ${b})` }}
-                />
-              );
-            })}
-          </div>
-        </Section>
-
         <Section title="Preferred agent" blurb="Used for the buy button, haul exports, and highlighted in the converter.">
           <select value={prefs.agentId} onChange={(e) => setPrefs({ agentId: e.target.value })} className={selectClass}>
             {ACTIVE_AGENTS.map((a) => (
@@ -214,7 +245,7 @@ export default function SettingsPage() {
               <button
                 key={id}
                 onClick={() => setPrefs({ cardSize: id })}
-                className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 rounded-none border px-3 py-2 text-sm font-medium transition-colors ${
                   prefs.cardSize === id
                     ? "border-neon-500/60 bg-neon-600/20 text-neon-300"
                     : "border-ink-500 text-mist-400 hover:text-mist-100"
@@ -240,7 +271,7 @@ export default function SettingsPage() {
           </select>
         </Section>
 
-        <label className="card-pop flex cursor-pointer items-center justify-between rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+        <label className="card-pop flex cursor-pointer items-center justify-between rounded-none border border-white/5 bg-ink-800/80 p-5">
           <span>
             <span className="block text-sm font-semibold text-mist-100">Auto-load prices</span>
             <span className="mt-0.5 block text-xs text-mist-500">
@@ -255,7 +286,7 @@ export default function SettingsPage() {
           />
         </label>
 
-        <label className="card-pop flex cursor-pointer items-center justify-between rounded-2xl border border-white/5 bg-ink-800/80 p-5">
+        <label className="card-pop flex cursor-pointer items-center justify-between rounded-none border border-white/5 bg-ink-800/80 p-5">
           <span>
             <span className="block text-sm font-semibold text-mist-100">One-click hand-off</span>
             <span className="mt-0.5 block text-xs text-mist-500">

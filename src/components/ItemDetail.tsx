@@ -33,7 +33,7 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
       onClick={onClose}
     >
       <div
-        className="fade-up w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-ink-900"
+        className="fade-up w-full max-w-lg overflow-hidden rounded-none border border-white/10 bg-ink-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3">
@@ -46,25 +46,23 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
         </div>
         <div
           className="tile-shimmer flex aspect-square items-center justify-center"
-          style={{
-            background: `linear-gradient(${135 + idx * 40}deg, ${item.hue[0]}66, ${item.hue[1]}66), #1d1631`,
-          }}
+          style={{ background: "#1a1a1a" }}
         >
-          <span className="rounded-full bg-black/50 px-4 py-1.5 text-xs text-white/80">
+          <span className="rounded-none bg-black/50 px-4 py-1.5 text-xs text-white/80">
             QC placeholder — real uploads land with the data pipeline
           </span>
         </div>
         <div className="flex items-center justify-between px-4 py-3">
           <button
             onClick={() => setIdx((idx - 1 + total) % total)}
-            className="flex items-center gap-1 rounded-lg border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
+            className="flex items-center gap-1 rounded-none border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
           >
             <ChevronLeft size={13} aria-hidden="true" /> Prev
           </button>
           <span className="text-[11px] text-mist-500">Esc to close · arrows to flip</span>
           <button
             onClick={() => setIdx((idx + 1) % total)}
-            className="flex items-center gap-1 rounded-lg border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
+            className="flex items-center gap-1 rounded-none border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
           >
             Next <ChevronRight size={13} aria-hidden="true" />
           </button>
@@ -91,7 +89,7 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
 
       <div className="mt-4 grid gap-8 md:grid-cols-[1.2fr_1fr]">
         <div>
-          <Thumb item={item} className="aspect-[4/3] rounded-2xl border border-white/5" />
+          <Thumb item={item} className="aspect-[4/3] rounded-none border border-white/5" />
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-mist-100">
@@ -106,19 +104,19 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
                     key={i}
                     onClick={() => setQcOpen(i)}
                     aria-label={`Open QC photo ${i + 1}`}
-                    className="tile-shimmer aspect-square rounded-lg border border-white/5 bg-ink-700 transition-transform hover:scale-[1.03]"
+                    className="tile-shimmer aspect-square rounded-none border border-white/5 bg-ink-700 transition-transform hover:scale-[1.03]"
                     style={{ animationDelay: `${i * 300}ms` }}
                   />
                 ))}
                 <button
                   onClick={() => setQcOpen(3)}
-                  className="flex aspect-square items-center justify-center rounded-lg border border-white/5 bg-ink-800 text-sm text-mist-400 transition-colors hover:text-neon-300"
+                  className="flex aspect-square items-center justify-center rounded-none border border-white/5 bg-ink-800 text-sm text-mist-400 transition-colors hover:text-neon-300"
                 >
                   +{Math.max(item.qcCount - 3, 0)}
                 </button>
               </div>
             ) : (
-              <p className="rounded-xl border border-dashed border-ink-500 px-4 py-6 text-center text-sm text-mist-400">
+              <p className="rounded-none border border-dashed border-ink-500 px-4 py-6 text-center text-sm text-mist-400">
                 No QC photos yet — be the first to share yours after your haul arrives.
               </p>
             )}
@@ -134,11 +132,11 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
 
           <Link
             href={`/store/${store.id}`}
-            className="card-pop mt-4 flex items-center gap-3 rounded-xl border border-white/5 bg-ink-800/80 px-4 py-3 text-sm"
+            className="card-pop mt-4 flex items-center gap-3 rounded-none border border-white/5 bg-ink-800/80 px-4 py-3 text-sm"
           >
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white"
-              style={{ background: `linear-gradient(135deg, ${store.hue[0]}, ${store.hue[1]})` }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none text-[10px] font-bold text-white"
+              style={{ background: "#1a1a1a" }}
             >
               {store.name.slice(0, 2).toUpperCase()}
             </span>
@@ -149,7 +147,7 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
               </span>
             </span>
             <span
-              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+              className={`rounded-none border px-2 py-0.5 text-xs font-medium ${
                 trusted
                   ? "border-neon-400/25 bg-neon-500/10 text-neon-300"
                   : "border-amber-400/25 bg-amber-400/10 text-amber-300"
@@ -160,7 +158,7 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
           </Link>
 
           {item.fitNote && (
-            <div className="mt-3 rounded-xl border border-aqua-400/20 bg-aqua-400/5 px-4 py-3 text-sm text-mist-300">
+            <div className="mt-3 rounded-none border border-aqua-400/20 bg-aqua-400/5 px-4 py-3 text-sm text-mist-300">
               <span className="font-semibold text-aqua-300">Fit:</span> {item.fitNote}
             </div>
           )}
@@ -181,7 +179,7 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
                   }
                 }}
                 aria-pressed={carted}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-none border px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                   carted
                     ? "border-neon-500/60 bg-neon-600/20 text-neon-300"
                     : "border-ink-500 text-mist-300 hover:border-neon-500/60 hover:bg-neon-600/10 hover:text-neon-300"
@@ -194,7 +192,7 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
                 onClick={() => toggleWishlist(item.id)}
                 aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
                 aria-pressed={wished}
-                className={`rounded-xl border px-4 transition-colors ${
+                className={`rounded-none border px-4 transition-colors ${
                   wished
                     ? "border-rose-400/50 bg-rose-400/10 text-rose-400"
                     : "border-ink-500 text-mist-400 hover:text-rose-400"
@@ -210,7 +208,7 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
             {item.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-white/5 bg-ink-700 px-2.5 py-1 text-xs text-mist-400"
+                className="rounded-none border border-white/5 bg-ink-700 px-2.5 py-1 text-xs text-mist-400"
               >
                 {tag}
               </span>

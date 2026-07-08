@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, Globe, Link2, Search, ShoppingBasket, Sparkles } from "lucide-react";
 import { CATALOG } from "@/data/catalog";
+import { storeAlbums } from "@/data/albums";
+import { detectStorePlatform } from "@/lib/platform";
 import { ItemCard } from "@/components/ItemCard";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore } from "@/lib/store";
@@ -23,7 +25,7 @@ export default function HomePage() {
   return (
     <div>
       <section className="fade-up mb-12 pt-4 text-center md:pt-10">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-neon-500/30 bg-neon-600/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.15em] text-neon-300">
+        <span className="inline-flex items-center gap-1.5 rounded-none border border-neon-500/30 bg-neon-600/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.15em] text-neon-300">
           <Sparkles size={12} aria-hidden="true" /> Personal find browser
         </span>
         <h1 className="mx-auto mt-4 max-w-2xl text-4xl font-extrabold leading-tight tracking-tight md:text-5xl">
@@ -56,10 +58,10 @@ export default function HomePage() {
           <Link
             key={href}
             href={href}
-            className="card-pop fade-up rounded-2xl border border-white/5 bg-ink-800/80 p-5"
+            className="card-pop fade-up rounded-none border border-white/5 bg-ink-800/80 p-5"
             style={{ animationDelay: `${i * 70}ms` }}
           >
-            <span className="flow-bg inline-flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-lg">
+            <span className="flow-bg inline-flex h-9 w-9 items-center justify-center rounded-none text-white shadow-hard-sm">
               <Icon size={17} aria-hidden="true" />
             </span>
             <h2 className="mt-3 text-sm font-semibold text-mist-100">{title}</h2>
@@ -92,7 +94,7 @@ export default function HomePage() {
           </Link>
         </div>
         {communityStores.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-ink-500 px-4 py-10 text-center text-sm text-mist-500">
+          <p className="rounded-none border border-dashed border-ink-500 px-4 py-10 text-center text-sm text-mist-500">
             The community directory is filling up — check back soon, or add your own store from the Library page.
           </p>
         )}
@@ -101,18 +103,21 @@ export default function HomePage() {
             <Link
               key={s.id}
               href={`/store/${s.id}`}
-              className="card-pop fade-up flex items-center gap-3 rounded-2xl border border-white/5 bg-ink-800/80 p-4"
+              className="card-pop fade-up flex items-center gap-3 rounded-none border border-white/5 bg-ink-800/80 p-4"
               style={{ animationDelay: `${i * 70}ms` }}
             >
               <span
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold text-white shadow"
-                style={{ background: `linear-gradient(135deg, ${s.hue[0]}, ${s.hue[1]})` }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-[11px] font-bold text-white shadow"
+                style={{ background: "#1a1a1a" }}
               >
                 {s.name.slice(0, 2).toUpperCase()}
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-mist-100">{s.name}</span>
-                <span className="block truncate text-xs text-mist-500">{s.albums} albums</span>
+                <span className="block truncate text-xs text-mist-500">
+                  {/* BUG FIX: s.albums was always 0 (unset directory field) — read the real album list length instead. */}
+                  {detectStorePlatform(s.url).platform === "yupoo" ? "Live on Yupoo" : `${storeAlbums(s).length} albums`}
+                </span>
               </span>
             </Link>
           ))}

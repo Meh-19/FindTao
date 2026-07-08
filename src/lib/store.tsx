@@ -158,6 +158,8 @@ export type SyncStatus = "idle" | "syncing" | "synced" | "error";
 export interface CloudUser {
   id: string;
   email: string | null;
+  /** Username captured in auth metadata at sign-up/sign-in time, if any — used to backfill the profiles row. */
+  metaUsername: string | null;
 }
 
 /** Everything that persists — mirrored to localStorage and, when signed in, to Supabase. */
@@ -259,9 +261,10 @@ interface Store {
   lastSyncAt: number | null;
   authOpen: boolean;
   setAuthOpen: (open: boolean) => void;
-  signInWithEmail: (email: string) => Promise<boolean>;
+  signInWithEmail: (email: string, username: string) => Promise<boolean>;
   signInWithPassword: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, username: string, agentId?: string) => Promise<boolean>;
+  updatePassword: (password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
   /** Site-default referral fragments per agent id, set from the dev panel. */
@@ -531,13 +534,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Watch Supabase auth state. No-op in local-only mode.
   useEffect(() => {
     if (!sb) return;
+    const toCloudUser = (u: { id: string; email?: string | null; user_metadata?: Record<string, unknown> } | undefined): CloudUser | null =>
+      u
+        ? {
+            id: u.id,
+            email: u.email ?? null,
+            metaUsername: typeof u.user_metadata?.username === "string" ? (u.user_metadata.username as string) : null,
+          }
+        : null;
     sb.auth.getSession().then(({ data }) => {
-      const u = data.session?.user;
-      setUser(u ? { id: u.id, email: u.email ?? null } : null);
+      setUser(toCloudUser(data.session?.user));
     });
     const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user;
-      setUser(u ? { id: u.id, email: u.email ?? null } : null);
+      setUser(toCloudUser(session?.user));
     });
     return () => sub.subscription.unsubscribe();
   }, [sb]);
@@ -575,6 +584,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refreshDirectory, refreshTagDefs, refreshAgentRefs]);
 
   // Role tags + display name from the signed-in user's profile.
+  //
+  // BUG FIX: accounts created via the magic-link (email OTP) flow never went
+  // through signUp(), so nothing ever wrote a profiles row — profileName
+  // stayed null forever and the account showed up as a bare email with no
+  // username, out of sync with password-created accounts. This now backfills
+  // the profiles row from the auth metadata username (captured at sign-in
+  // time, see toCloudUser above) whenever the row is missing or empty, so
+  // every account — password or magic-link — ends up with a real username.
   useEffect(() => {
     if (!sb || !user) {
       setProfileTags([]);
@@ -586,10 +603,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .select("tags, username")
       .eq("user_id", user.id)
       .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        if (data.tags) setProfileTags(data.tags as string[]);
-        setProfileName((data.username as string | null) ?? null);
+      .then(async ({ data }) => {
+        if (cancelled) return;
+        const tags = (data?.tags as string[] | undefined) ?? [];
+        const existingUsername = (data?.username as string | null | undefined) ?? null;
+        setProfileTags(tags);
+        if (existingUsername) {
+          setProfileName(existingUsername);
+          return;
+        }
+        if (!user.metaUsername) {
+          setProfileName(null);
+          return;
+        }
+        // No profiles row, or one with a blank username — backfill it now.
+        const { error } = await sb
+          .from("profiles")
+          .upsert({ user_id: user.id, username: user.metaUsername, tags });
+        if (!cancelled) setProfileName(error ? null : user.metaUsername);
       });
     return () => {
       cancelled = true;
@@ -647,11 +678,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [sb, snapshot, user, hydrated]);
 
   const signInWithEmail = useCallback(
-    async (email: string) => {
+    // BUG FIX: magic-link sign-in used to create the account with no
+    // username at all (no `data` was ever passed to signInWithOtp), so
+    // magic-link accounts came out permanently blank/mismatched next to
+    // password accounts. Username is now required by the caller (AuthModal)
+    // and stamped into the same auth metadata signUp() uses, so the
+    // profiles-backfill effect above picks it up identically either way.
+    async (email: string, username: string) => {
       if (!sb) return false;
       const { error } = await sb.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: window.location.origin },
+        options: { data: { username }, emailRedirectTo: window.location.origin },
       });
       if (error) {
         toast(error.message, "error");
@@ -704,6 +741,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (url: string | null, agentId: string) =>
       withRef(url, prefs.myRefs[agentId]?.trim() || agentRefs[agentId]),
     [prefs.myRefs, agentRefs],
+  );
+
+  // BUG FIX: magic-link accounts previously had no way to ever set a
+  // password, permanently locking them out of password sign-in on another
+  // device. Safe to call any time while signed in — no plaintext password
+  // ever has to survive the email-redirect round trip.
+  const updatePassword = useCallback(
+    async (password: string) => {
+      if (!sb || !user) return false;
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) {
+        toast(error.message, "error");
+        return false;
+      }
+      toast("Password set");
+      return true;
+    },
+    [sb, user, toast],
   );
 
   const signOut = useCallback(async () => {
@@ -817,6 +872,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signInWithEmail,
       signInWithPassword,
       signUp,
+      updatePassword,
       signOut,
       syncNow,
       agentRefs,
@@ -838,7 +894,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, toasts, toast,
       sb, user, profileName, syncStatus, lastSyncAt, authOpen,
-      signInWithEmail, signInWithPassword, signUp, signOut, syncNow,
+      signInWithEmail, signInWithPassword, signUp, updatePassword, signOut, syncNow,
       agentRefs, refreshAgentRefs, applyRef,
       directory, refreshDirectory, tagDefs, refreshTagDefs, profileTags, isAdmin,
     ],

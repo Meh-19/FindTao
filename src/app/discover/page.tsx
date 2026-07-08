@@ -44,14 +44,14 @@ export default function DiscoverPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search stores…"
-          className="w-full rounded-xl border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500 sm:max-w-xs"
+          className="w-full rounded-none border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500 sm:max-w-xs"
         />
         <div className="flex flex-wrap gap-1.5">
           {(["all", ...STORE_CATEGORIES] as const).map((c) => (
             <button
               key={c}
               onClick={() => setCategory(c as StoreCategory | "all")}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-none border px-3 py-1.5 text-xs font-medium transition-colors ${
                 category === c
                   ? "border-neon-500/60 bg-neon-600/20 text-neon-300"
                   : "border-ink-500 text-mist-400 hover:text-mist-100"
@@ -64,7 +64,7 @@ export default function DiscoverPage() {
       </div>
 
       {stores.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
+        <div className="rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
           No stores match. Try another category or search term.
         </div>
       ) : (

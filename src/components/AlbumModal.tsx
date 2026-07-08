@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Images, Link2, Minus, Plus, ShoppingCart, X } from "lucide-react";
+import { Link2, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
 import { parseLink } from "@/lib/links";
-import { parsePriceCny } from "@/lib/price";
+import { parsePriceCnyDetailed } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
 import { useStore } from "@/lib/store";
 import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
+import { Lightbox } from "./Lightbox";
 
 /**
  * Album browser — opens as a modal over the store view. Live Yupoo albums
@@ -37,7 +38,13 @@ export function AlbumModal({
   const [photos, setPhotos] = useState<string[] | null>(live ? null : []);
   const [itemLinks, setItemLinks] = useState<string[]>([]);
 
-  const priceCny = useMemo(() => parsePriceCny(album.name), [album.name]);
+  // BUG FIX: album titles almost never carry a structured price field, so the
+  // old code only checked the exact title text with strict currency-marker
+  // patterns and silently gave up — showing "Price not listed" on most
+  // albums. parsePriceCnyDetailed also scans for a bare 3-digit fallback
+  // (e.g. "New tee 180") and flags it as an estimate for the label below.
+  const parsedPrice = useMemo(() => parsePriceCnyDetailed(album.name), [album.name]);
+  const priceCny = parsedPrice?.value ?? null;
 
   useEffect(() => {
     if (!live) return;
@@ -70,21 +77,16 @@ export function AlbumModal({
   const total = photos && photos.length > 0 ? photos.length : Math.max(album.photoCount, 1);
   const loading = photos === null;
 
+  // UI FIX: the lightbox now owns its own Esc/arrow-key handling — this
+  // modal only needs to close itself when the lightbox isn't open.
   useEffect(() => {
+    if (viewer !== null) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        // Esc backs out one level: viewer first, then the modal itself.
-        if (viewer === null) onClose();
-        else setViewer(null);
-      }
-      if (viewer !== null) {
-        if (e.key === "ArrowRight") setViewer((v) => ((v ?? 0) + 1) % total);
-        if (e.key === "ArrowLeft") setViewer((v) => ((v ?? 0) - 1 + total) % total);
-      }
+      if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [viewer, total, onClose]);
+  }, [viewer, onClose]);
 
   // Lock page scroll while the modal is open.
   useEffect(() => {
@@ -95,11 +97,9 @@ export function AlbumModal({
     };
   }, []);
 
-  function tileStyle(i: number) {
-    const angle = 100 + ((i * 47) % 160);
-    return {
-      background: `linear-gradient(${angle}deg, ${album.hue[0]}${i % 2 ? "cc" : "99"}, ${album.hue[1]}${i % 3 ? "bb" : "88"}), #151024`,
-    };
+  function tileStyle() {
+    // Flat monochrome placeholder tile — no gradient, matches the hatch texture from .tile-shimmer.
+    return { background: "#1a1a1a" };
   }
 
   const gridItems = loading
@@ -117,15 +117,15 @@ export function AlbumModal({
       onClick={onClose}
     >
       <div
-        className="fade-up flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900"
+        className="fade-up flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-none border border-white/10 bg-ink-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flow-bg h-0.5 shrink-0" />
         <div className="flex items-center justify-between px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white"
-              style={{ background: `linear-gradient(135deg, ${store.hue[0]}, ${store.hue[1]})` }}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none text-[10px] font-bold text-white"
+              style={{ background: "#1a1a1a" }}
             >
               {store.name.slice(0, 2).toUpperCase()}
             </span>
@@ -139,7 +139,7 @@ export function AlbumModal({
           <button
             onClick={onClose}
             aria-label="Close album"
-            className="rounded-lg p-1.5 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
+            className="rounded-none p-1.5 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
           >
             <X size={16} aria-hidden="true" />
           </button>
@@ -150,10 +150,11 @@ export function AlbumModal({
             {gridItems.map((photo, i) => (
               <button
                 key={i}
-                onClick={() => !loading && setViewer(i)}
+                onClick={() => photo && setViewer(i)}
+                disabled={!photo}
                 aria-label={`Open photo ${i + 1}`}
-                className="tile-shimmer aspect-square overflow-hidden rounded-lg border border-white/5 transition-transform duration-200 hover:scale-[1.03]"
-                style={photo ? undefined : tileStyle(i)}
+                className="tile-shimmer aspect-square overflow-hidden rounded-none border border-white/5 transition-transform duration-200 enabled:hover:scale-[1.03] disabled:cursor-default"
+                style={photo ? undefined : tileStyle()}
               >
                 {photo && (
                   <img
@@ -184,7 +185,12 @@ export function AlbumModal({
               <div className="min-w-0">
                 {priceCny !== null ? (
                   <p className="text-lg font-extrabold tabular-nums text-mist-100">
-                    {formatMoney(priceCny, "CNY")}{" "}
+                    {formatMoney(priceCny, "CNY")}
+                    {parsedPrice?.estimate && (
+                      <span className="ml-1 font-mono text-[10px] font-normal uppercase tracking-wide text-mist-500">
+                        ¥ (est.)
+                      </span>
+                    )}{" "}
                     <span className="flow-text text-sm font-bold">≈ {fmtConverted(priceCny)}</span>
                   </p>
                 ) : (
@@ -192,7 +198,7 @@ export function AlbumModal({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-xl border border-ink-500">
+                <div className="flex items-center rounded-none border border-ink-500">
                   <button
                     onClick={() => setQty((q) => Math.max(1, q - 1))}
                     aria-label="Decrease quantity"
@@ -229,7 +235,7 @@ export function AlbumModal({
                     toast(`Added ${qty} × ${album.name.slice(0, 40)} to cart`);
                     setQty(1);
                   }}
-                  className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                  className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
                 >
                   <ShoppingCart size={14} aria-hidden="true" /> Add to cart
                 </button>
@@ -245,7 +251,7 @@ export function AlbumModal({
                   href={`/convert?link=${encodeURIComponent(marketplaceLink.rawUrl)}`}
                   onClick={onClose}
                   aria-label="Open in converter"
-                  className="rounded-xl border border-ink-500 p-2.5 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+                  className="rounded-none border border-ink-500 p-2.5 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
                 >
                   <Link2 size={16} aria-hidden="true" />
                 </Link>
@@ -255,64 +261,21 @@ export function AlbumModal({
         )}
       </div>
 
-      {viewer !== null && (
-        <div
-          className="fixed inset-0 z-10 flex items-center justify-center bg-black/85 p-4"
-          onClick={(e) => {
-            e.stopPropagation();
-            setViewer(null);
-          }}
-        >
-          <div
-            className="fade-up w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-ink-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3">
-              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.15em] text-mist-400">
-                <Images size={13} aria-hidden="true" />
-                {album.name} · {viewer + 1} / {total}
-              </p>
-              <button
-                onClick={() => setViewer(null)}
-                aria-label="Close viewer"
-                className="rounded px-2 py-1 text-mist-400 hover:text-white"
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </div>
-            <div
-              className="flex aspect-square items-center justify-center bg-ink-950"
-              style={photos && photos[viewer] ? undefined : tileStyle(viewer)}
-            >
-              {photos && photos[viewer] ? (
-                <img
-                  src={proxiedImg(photos[viewer], host!)}
-                  alt={`${album.name} photo ${viewer + 1}`}
-                  className="max-h-full max-w-full object-contain"
-                />
-              ) : (
-                <span className="rounded-full bg-black/50 px-4 py-1.5 text-xs text-white/80">
-                  Photo placeholder
-                </span>
-              )}
-            </div>
-            <div className="flex items-center justify-between px-4 py-3">
-              <button
-                onClick={() => setViewer((viewer - 1 + total) % total)}
-                className="flex items-center gap-1 rounded-lg border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
-              >
-                <ChevronLeft size={13} aria-hidden="true" /> Prev
-              </button>
-              <span className="text-[11px] text-mist-500">Esc to close · arrows to flip</span>
-              <button
-                onClick={() => setViewer((viewer + 1) % total)}
-                className="flex items-center gap-1 rounded-lg border border-ink-500 px-3 py-1.5 text-xs text-mist-300 hover:border-neon-500/60 hover:text-neon-300"
-              >
-                Next <ChevronRight size={13} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* UI FIX: dedicated Lightbox — object-contain + max-h-[80vh], plus a
+          dimensions/raw-link caption, instead of the old aspect-square
+          viewer that could crop or stretch non-square photos. */}
+      {viewer !== null && photos && (
+        <Lightbox
+          images={photos.map((p) => ({
+            src: proxiedImg(p, host!),
+            rawSrc: p,
+            alt: `${album.name} photo`,
+          }))}
+          index={viewer}
+          onIndexChange={setViewer}
+          onClose={() => setViewer(null)}
+          title={album.name}
+        />
       )}
     </div>
   );

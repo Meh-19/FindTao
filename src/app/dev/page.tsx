@@ -43,7 +43,7 @@ function yupooName(url: string): string | null {
 }
 
 const inputClass =
-  "rounded-xl border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
+  "rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
 
 function TagChip({
   def,
@@ -59,7 +59,7 @@ function TagChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors"
+      className="rounded-none border px-2 py-0.5 text-[11px] font-medium transition-colors"
       style={
         active
           ? { borderColor: `${def.color}99`, background: `${def.color}26`, color: def.color }
@@ -83,7 +83,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-white/5 bg-ink-800/70 p-5">
+    <section className="rounded-none border border-white/5 bg-ink-800/70 p-5">
       <h2 className="flex items-center gap-2 text-sm font-bold text-mist-100">
         <Icon size={15} aria-hidden="true" className="text-neon-300" />
         {title}
@@ -150,7 +150,7 @@ function AddStore() {
             type="button"
             onClick={() => setCats((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))}
             aria-pressed={cats.includes(c)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-none border px-2.5 py-1 text-xs font-medium transition-colors ${
               cats.includes(c)
                 ? "border-neon-500/60 bg-neon-600/20 text-neon-300"
                 : "border-ink-500 text-mist-500 hover:text-mist-300"
@@ -177,7 +177,7 @@ function AddStore() {
           <input type="checkbox" checked={discover} onChange={(e) => setDiscover(e.target.checked)} className="accent-violet-500" />
           Show in Discover
         </label>
-        <button onClick={add} disabled={busy} className="btn-glow ml-auto rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        <button onClick={add} disabled={busy} className="btn-glow ml-auto rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
           {busy ? "Adding…" : "Add store"}
         </button>
       </div>
@@ -227,7 +227,7 @@ function BulkAdd() {
         placeholder={"https://unionkingdom.x.yupoo.com\nhttps://mobiusstudio.x.yupoo.com"}
         className={`${inputClass} w-full font-mono text-xs`}
       />
-      <button onClick={run} disabled={busy} className="btn-glow mt-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button onClick={run} disabled={busy} className="btn-glow mt-2 rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {busy ? "Adding…" : "Add all"}
       </button>
     </Section>
@@ -274,7 +274,7 @@ function StoreRow({
   }
 
   return (
-    <div className={`rounded-xl border p-3 ${store.banned ? "border-red-400/30 bg-red-400/5" : "border-white/5 bg-ink-900/60"}`}>
+    <div className={`rounded-none border p-3 ${store.banned ? "border-red-400/30 bg-red-400/5" : "border-white/5 bg-ink-900/60"}`}>
       <div className="flex flex-wrap items-center gap-2.5">
         <input
           type="checkbox"
@@ -284,8 +284,8 @@ function StoreRow({
           className="accent-violet-500"
         />
         <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[9px] font-bold text-white"
-          style={{ background: `linear-gradient(135deg, ${store.hue[0]}, ${store.hue[1]})` }}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-[9px] font-bold text-white"
+          style={{ background: "#1a1a1a" }}
         >
           {store.name.slice(0, 2).toUpperCase()}
         </span>
@@ -304,20 +304,20 @@ function StoreRow({
         <div className="flex items-center gap-1.5 text-[11px]">
           <button
             onClick={() => update({ discover: !(store.discover ?? true) }, `${store.name} ${store.discover === false ? "shown in" : "hidden from"} Discover`)}
-            className="rounded-lg border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
           >
             {store.discover === false ? "Show" : "Hide"}
           </button>
           <button
             onClick={() => update({ banned: !store.banned }, store.banned ? `${store.name} unbanned` : `${store.name} banned`)}
-            className="rounded-lg border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-amber-400/60 hover:text-amber-300"
+            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-amber-400/60 hover:text-amber-300"
           >
             {store.banned ? "Unban" : "Ban"}
           </button>
           <button
             onClick={remove}
             aria-label={`Remove ${store.name}`}
-            className="rounded-lg border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-red-400/60 hover:text-red-300"
+            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-red-400/60 hover:text-red-300"
           >
             <Trash2 size={12} aria-hidden="true" />
           </button>
@@ -362,7 +362,7 @@ function StoreManager() {
   }
 
   const bulkBtn =
-    "rounded-lg border border-ink-500 px-2.5 py-1 text-[11px] font-medium text-mist-400 transition-colors hover:text-mist-100 disabled:opacity-40";
+    "rounded-none border border-ink-500 px-2.5 py-1 text-[11px] font-medium text-mist-400 transition-colors hover:text-mist-100 disabled:opacity-40";
 
   return (
     <Section icon={ShieldCheck} title={`Directory (${directory.length})`} blurb="Ban hides a store from everyone. Hide keeps it reachable but out of Discover.">
@@ -383,7 +383,7 @@ function StoreManager() {
         <button disabled={selected.size === 0} onClick={() => bulk("delete", "removed")} className={`${bulkBtn} hover:border-red-400/60 hover:text-red-300`}>Remove</button>
       </div>
       {directory.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-ink-500 px-4 py-8 text-center text-sm text-mist-500">
+        <p className="rounded-none border border-dashed border-ink-500 px-4 py-8 text-center text-sm text-mist-500">
           Directory is empty — add your first store above.
         </p>
       ) : (
@@ -434,15 +434,15 @@ function TagManager() {
           <option value="user">user</option>
         </select>
         <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} placeholder="tag name" className={`${inputClass} w-36`} />
-        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Tag color" className="h-9 w-12 cursor-pointer rounded-lg border border-ink-500 bg-ink-900 p-1" />
-        <button onClick={create} className="btn-glow rounded-xl px-3.5 py-2 text-sm font-semibold text-white">Create</button>
+        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Tag color" className="h-9 w-12 cursor-pointer rounded-none border border-ink-500 bg-ink-900 p-1" />
+        <button onClick={create} className="btn-glow rounded-none px-3.5 py-2 text-sm font-semibold text-white">Create</button>
       </div>
       <div className="mt-4 space-y-2">
         {(["store", "user"] as const).map((k) => (
           <div key={k} className="flex flex-wrap items-center gap-1.5">
             <span className="w-10 text-[10px] font-bold uppercase tracking-wider text-mist-500">{k}</span>
             {tagDefs.filter((t) => t.kind === k).map((t) => (
-              <span key={t.id} className="group flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ borderColor: `${t.color}99`, background: `${t.color}1f`, color: t.color }}>
+              <span key={t.id} className="group flex items-center gap-1 rounded-none border px-2 py-0.5 text-[11px] font-medium" style={{ borderColor: `${t.color}99`, background: `${t.color}1f`, color: t.color }}>
                 {t.name}
                 <button onClick={() => remove(t)} aria-label={`Delete tag ${t.name}`} className="opacity-50 transition-opacity hover:opacity-100">
                   ×
@@ -493,12 +493,12 @@ function RefCodeManager() {
               value={value(a.id)}
               onChange={(e) => setDraft((prev) => ({ ...prev, [a.id]: e.target.value }))}
               placeholder="param=code"
-              className="min-w-0 flex-1 rounded-lg border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-mist-100 placeholder-mist-500/60 outline-none transition-colors focus:border-neon-500"
+              className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-mist-100 placeholder-mist-500/60 outline-none transition-colors focus:border-neon-500"
             />
           </label>
         ))}
       </div>
-      <button onClick={save} disabled={busy} className="btn-glow mt-3 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button onClick={save} disabled={busy} className="btn-glow mt-3 rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {busy ? "Saving…" : "Save codes"}
       </button>
     </Section>
@@ -537,7 +537,7 @@ function UserManager() {
   return (
     <Section icon={Users} title="User roles" blurb="Assign profile tags (beta, admin, owner, …). Admin/owner unlock this panel.">
       {profiles === null ? (
-        <button onClick={load} className="rounded-xl border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300">
+        <button onClick={load} className="rounded-none border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300">
           Load users
         </button>
       ) : profiles.length === 0 ? (
@@ -545,8 +545,8 @@ function UserManager() {
       ) : (
         <div className="space-y-2">
           {profiles.map((p) => (
-            <div key={p.user_id} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/5 bg-ink-900/60 px-3 py-2.5">
-              <span className="flow-bg flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white">
+            <div key={p.user_id} className="flex flex-wrap items-center gap-2 rounded-none border border-white/5 bg-ink-900/60 px-3 py-2.5">
+              <span className="flow-bg flex h-6 w-6 items-center justify-center rounded-none text-[10px] font-bold text-white">
                 {(p.email ?? "?").slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-mist-100">{p.email ?? p.user_id}</span>
@@ -576,7 +576,7 @@ export default function DevPage() {
   if (state === "loading") return null;
   if (state !== "ok") {
     return (
-      <div className="fade-up mx-auto max-w-md rounded-2xl border border-dashed border-ink-500 px-6 py-14 text-center">
+      <div className="fade-up mx-auto max-w-md rounded-none border border-dashed border-ink-500 px-6 py-14 text-center">
         <Wrench size={20} aria-hidden="true" className="mx-auto text-mist-500" />
         <p className="mt-3 text-sm text-mist-300">
           {state === "no-cloud"

@@ -48,7 +48,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   return (
     <div
       id={`haul-${haul.id}`}
-      className={`card-pop fade-up overflow-hidden rounded-2xl border bg-ink-800/80 scroll-mt-20 ${
+      className={`card-pop fade-up overflow-hidden rounded-none border bg-ink-800/80 scroll-mt-20 ${
         active ? "border-neon-500/50" : "border-white/5"
       } ${focused ? "ring-2 ring-neon-400/60" : ""}`}
     >
@@ -62,7 +62,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
               onChange={(e) => setName(e.target.value)}
               onBlur={saveName}
               onKeyDown={(e) => e.key === "Enter" && saveName()}
-              className="rounded-lg border border-neon-500 bg-ink-900 px-2 py-1 text-sm font-semibold text-mist-100 outline-none"
+              className="rounded-none border border-neon-500 bg-ink-900 px-2 py-1 text-sm font-semibold text-mist-100 outline-none"
             />
           ) : (
             <h2 className="text-base font-bold text-mist-100">{haul.name}</h2>
@@ -71,13 +71,13 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
             <Pencil size={13} aria-hidden="true" />
           </button>
           {active ? (
-            <span className="rounded-full border border-neon-400/30 bg-neon-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neon-300">
+            <span className="rounded-none border border-neon-400/30 bg-neon-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neon-300">
               Active
             </span>
           ) : (
             <button
               onClick={() => { setPrefs({ activeHaulId: haul.id }); toast(`${haul.name} is now the active haul`); }}
-              className="rounded-full border border-ink-500 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-mist-500 hover:text-neon-300"
+              className="rounded-none border border-ink-500 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-mist-500 hover:text-neon-300"
             >
               Set active
             </button>
@@ -108,14 +108,14 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
               value={haul.budgetCny ?? ""}
               placeholder="—"
               onChange={(e) => setHaulBudget(haul.id, e.target.value === "" ? null : Number(e.target.value))}
-              className="w-20 rounded-lg border border-ink-500 bg-ink-900 px-2 py-1 text-xs text-mist-100 outline-none focus:border-neon-500"
+              className="w-20 rounded-none border border-ink-500 bg-ink-900 px-2 py-1 text-xs text-mist-100 outline-none focus:border-neon-500"
             />
           </label>
         </div>
 
         {haul.budgetCny !== null && (
           <div className="mt-2">
-            <div className="h-1.5 overflow-hidden rounded-full bg-ink-600">
+            <div className="h-1.5 overflow-hidden rounded-none bg-ink-600">
               <div
                 className={overBudget ? "h-full bg-red-500" : "flow-bg h-full"}
                 style={{ width: `${budgetPct}%` }}
@@ -132,17 +132,17 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
         {items.length > 0 && (
           <div className="mt-4 space-y-2">
             {items.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 rounded-xl border border-white/5 bg-ink-900/60 p-2">
+              <div key={item.id} className="flex items-center gap-3 rounded-none border border-white/5 bg-ink-900/60 p-2">
                 {item.image && item.imgHost ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={proxiedImg(item.image, item.imgHost)}
                     alt=""
                     loading="lazy"
-                    className="h-10 w-12 shrink-0 rounded-lg border border-white/5 object-cover"
+                    className="h-10 w-12 shrink-0 rounded-none border border-white/5 object-cover"
                   />
                 ) : (
-                  <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-ink-700 text-mist-500">
+                  <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
                     <ImageOff size={13} aria-hidden="true" />
                   </span>
                 )}
@@ -150,7 +150,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
                   {item.title}
                 </p>
                 {item.qty > 1 && (
-                  <span className="rounded-full bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
+                  <span className="rounded-none bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
                     ×{item.qty}
                   </span>
                 )}
@@ -219,9 +219,9 @@ function HaulsView() {
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="New haul name — e.g. Summer fits"
-          className="flex-1 rounded-xl border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500 sm:max-w-sm"
+          className="flex-1 rounded-none border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500 sm:max-w-sm"
         />
-        <button onClick={add} className="btn-glow flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold text-white">
+        <button onClick={add} className="btn-glow flex items-center gap-1.5 rounded-none px-5 py-2.5 text-sm font-semibold text-white">
           <Plus size={14} aria-hidden="true" /> Create haul
         </button>
       </div>

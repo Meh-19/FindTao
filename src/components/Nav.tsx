@@ -42,11 +42,11 @@ function AccountFooter() {
   const inner = (
     <>
       {signedIn ? (
-        <span className="flow-bg flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white">
+        <span className="flow-bg flex h-7 w-7 items-center justify-center rounded-none text-xs font-bold text-white">
           {display.slice(0, 1).toUpperCase()}
         </span>
       ) : (
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-600 text-xs text-mist-300">
+        <span className="flex h-7 w-7 items-center justify-center rounded-none bg-ink-600 text-xs text-mist-300">
           G
         </span>
       )}
@@ -83,7 +83,7 @@ function AccountFooter() {
 function Logo() {
   return (
     <Link href="/" className="flex items-center gap-2 px-5 pb-5 pt-6 text-xl font-bold tracking-tight">
-      <span className="flow-bg inline-flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-lg">
+      <span className="flow-bg inline-flex h-7 w-7 items-center justify-center rounded-none text-white shadow-hard-sm">
         <Sparkles size={14} aria-hidden="true" />
       </span>
       Find<span className="flow-text -ml-1">Tao</span>
@@ -108,13 +108,13 @@ function SidebarContent() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${
+              className={`relative flex items-center gap-3 rounded-none px-3 py-2 text-sm font-medium transition-all duration-200 ${
                 active
                   ? "bg-gradient-to-r from-neon-600/30 to-flare-500/10 text-white"
                   : "text-mist-400 hover:bg-white/5 hover:text-mist-100"
               }`}
             >
-              {active && <span className="flow-bg absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full" />}
+              {active && <span className="flow-bg absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-none" />}
               <Icon size={16} aria-hidden="true" className={active ? "text-neon-300" : ""} />
               {label}
             </Link>
@@ -131,10 +131,10 @@ function SidebarContent() {
             <Link
               key={h.id}
               href={`/hauls?focus=${h.id}`}
-              className="group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs text-mist-400 transition-colors hover:bg-white/5 hover:text-mist-100"
+              className="group flex items-center gap-2.5 rounded-none px-3 py-1.5 text-xs text-mist-400 transition-colors hover:bg-white/5 hover:text-mist-100"
             >
               <span
-                className={`h-1.5 w-1.5 rounded-full ${
+                className={`h-1.5 w-1.5 rounded-none ${
                   h.id === prefs.activeHaulId ? "flow-bg pulse-soft" : "bg-ink-500"
                 }`}
               />
@@ -161,13 +161,13 @@ function SidebarContent() {
             <Link
               key={s.id}
               href={`/store/${s.id}`}
-              className={`group flex items-center gap-2.5 rounded-lg px-3 py-1.5 transition-colors hover:bg-white/5 ${
+              className={`group flex items-center gap-2.5 rounded-none px-3 py-1.5 transition-colors hover:bg-white/5 ${
                 pathname === `/store/${s.id}` ? "bg-white/5" : ""
               }`}
             >
               <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[9px] font-bold text-white shadow"
-                style={{ background: `linear-gradient(135deg, ${s.hue[0]}, ${s.hue[1]})` }}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-[9px] font-bold text-white shadow"
+                style={{ background: "#1a1a1a" }}
               >
                 {s.name.slice(0, 2).toUpperCase()}
               </span>
@@ -215,7 +215,7 @@ export function Nav() {
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
-            className="-ml-1 rounded-lg p-1.5 text-mist-300 transition-colors hover:bg-white/5 hover:text-white"
+            className="-ml-1 rounded-none p-1.5 text-mist-300 transition-colors hover:bg-white/5 hover:text-white"
           >
             <Menu size={20} aria-hidden="true" />
           </button>
@@ -244,7 +244,7 @@ export function Nav() {
           <button
             onClick={() => setDrawerOpen(false)}
             aria-label="Close menu"
-            className="rounded-lg p-1.5 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
+            className="rounded-none p-1.5 text-mist-400 transition-colors hover:bg-white/5 hover:text-white"
           >
             <X size={18} aria-hidden="true" />
           </button>

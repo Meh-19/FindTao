@@ -31,7 +31,7 @@ export function AgentActions({ link, dropUp = false }: { link: ParsedLink; dropU
           href={preferredUrl ?? "#"}
           target="_blank"
           rel="noopener noreferrer"
-          className="btn-glow flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-white"
+          className="btn-glow flex flex-1 items-center justify-center gap-1.5 rounded-none px-4 py-2.5 text-center text-sm font-semibold text-white"
         >
           Buy on {preferred.name} <ExternalLink size={13} aria-hidden="true" />
         </a>
@@ -40,7 +40,7 @@ export function AgentActions({ link, dropUp = false }: { link: ParsedLink; dropU
             onClick={() => setOpen((v) => !v)}
             aria-label="Choose another agent"
             aria-expanded={open}
-            className="rounded-xl border border-ink-500 px-3 text-mist-300 transition-colors hover:border-neon-500/60 hover:bg-neon-600/10 hover:text-neon-300"
+            className="rounded-none border border-ink-500 px-3 text-mist-300 transition-colors hover:border-neon-500/60 hover:bg-neon-600/10 hover:text-neon-300"
           >
             <ChevronDown size={14} aria-hidden="true" className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
           </button>
@@ -49,7 +49,7 @@ export function AgentActions({ link, dropUp = false }: { link: ParsedLink; dropU
 
       {open && (
         <div
-          className={`fade-up absolute right-0 z-10 max-h-72 w-64 overflow-y-auto rounded-xl border border-ink-500 bg-ink-700 shadow-2xl shadow-black/60 ${
+          className={`fade-up absolute right-0 z-10 max-h-72 w-64 overflow-y-auto rounded-none border border-ink-500 bg-ink-700 shadow-hard ${
             dropUp ? "bottom-full mb-2" : "mt-2"
           }`}
         >

@@ -33,9 +33,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div className="flow-bg fixed inset-x-0 top-0 z-50 h-0.5" />
-        <div className="aurora" aria-hidden="true">
-          <i /><i /><i />
-        </div>
         <StoreProvider>
           <div className="min-h-screen md:flex">
             <Nav />
