@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CloudUpload, KeyRound, LogOut } from "lucide-react";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { CURRENCIES, type Currency } from "@/lib/currency";
-import { useStore, type CardSize } from "@/lib/store";
+import { useStore, ACCENTS, type AccentId, type CardSize } from "@/lib/store";
 
 const selectClass =
   "mt-3 w-full rounded-none border border-ink-500 bg-ink-900 px-3 py-2.5 text-sm text-mist-100 outline-none transition-colors focus:border-neon-500";
@@ -212,6 +212,28 @@ export default function SettingsPage() {
       </p>
 
       <div className="mt-6 space-y-5">
+        <Section title="Theme" blurb="A flat accent color for buttons and highlights — the sharp-border, monochrome base stays the same.">
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            {(Object.keys(ACCENTS) as AccentId[]).map((id) => {
+              const { label, fg } = ACCENTS[id];
+              const active = prefs.accent === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => { setPrefs({ accent: id }); toast(`Theme set to ${label}`); }}
+                  aria-label={`${label} theme`}
+                  aria-pressed={active}
+                  title={label}
+                  className={`h-9 w-9 border transition-all duration-150 ${
+                    active ? "border-white shadow-hard-sm" : "border-ink-500 hover:border-mist-400"
+                  }`}
+                  style={{ background: fg }}
+                />
+              );
+            })}
+          </div>
+        </Section>
+
         <Section title="Preferred agent" blurb="Used for the buy button, haul exports, and highlighted in the converter.">
           <select value={prefs.agentId} onChange={(e) => setPrefs({ agentId: e.target.value })} className={selectClass}>
             {ACTIVE_AGENTS.map((a) => (
@@ -282,7 +304,7 @@ export default function SettingsPage() {
             type="checkbox"
             checked={prefs.autoPrices}
             onChange={(e) => setPrefs({ autoPrices: e.target.checked })}
-            className="h-5 w-5 accent-violet-500"
+            className="h-5 w-5 accent-white"
           />
         </label>
 
@@ -297,7 +319,7 @@ export default function SettingsPage() {
             type="checkbox"
             checked={prefs.oneClick}
             onChange={(e) => setPrefs({ oneClick: e.target.checked })}
-            className="h-5 w-5 accent-violet-500"
+            className="h-5 w-5 accent-white"
           />
         </label>
 

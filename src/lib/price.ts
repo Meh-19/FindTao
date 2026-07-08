@@ -34,9 +34,14 @@ export function parsePriceCnyDetailed(text: string): ParsedPrice | null {
     }
   }
 
-  // Last resort: a bare 3-digit number not glued to a size/measurement unit
-  // (cm, eu, us, mm, kg, xl) — common seller shorthand like "New tee 180".
-  const bare = t.match(/(?<![a-z0-9])(\d{3})(?![a-z0-9])/i);
+  // Last resort: a bare 3-digit number not glued to a size/measurement/
+  // fabric unit — common seller shorthand like "New tee 180". Excludes "%"
+  // on both sides (BUG FIX: "100% cotton" was being read as ¥100 on nearly
+  // every listing) and a denylist of unit words that follow fabric-weight
+  // and material numbers ("220gsm", "600 gsm", "100% cotton").
+  const bare = t.match(
+    /(?<![a-z0-9%])(\d{3})(?![a-z0-9%])(?!\s*(?:gsm|cm|mm|kg|oz|ml|cotton|poly(?:ester)?|nylon|spandex|denier)\b)/i,
+  );
   if (bare) {
     const value = Number(bare[1]);
     if (value >= 100 && value <= 999) return { value, estimate: true };

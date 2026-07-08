@@ -62,12 +62,15 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
           </div>
         </div>
       </Link>
+      {/* BUG FIX: translucent black badges were nearly invisible on the flat
+          near-black placeholder tiles (no real photo) — a solid ink fill
+          with a hairline border keeps them legible over any background. */}
       <button
         onClick={() => toggleWishlist(item.id)}
         aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
         aria-pressed={wished}
-        className={`absolute left-3 top-3 rounded-none bg-black/45 p-1.5 shadow-hard-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/70 ${
-          wished ? "text-rose-400" : "text-white/70 hover:text-white"
+        className={`absolute left-3 top-3 rounded-none border border-white/15 bg-ink-950/90 p-1.5 shadow-hard-sm transition-all duration-200 hover:bg-ink-950 ${
+          wished ? "text-rose-400" : "text-white/80 hover:text-white"
         }`}
       >
         <Heart size={14} aria-hidden="true" className={wished ? "fill-current" : ""} />
@@ -82,8 +85,10 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
         }}
         aria-label={carted ? "Remove from cart" : "Add to cart"}
         aria-pressed={carted}
-        className={`absolute right-3 top-3 flex items-center gap-1 rounded-none px-2.5 py-1 text-xs font-semibold shadow-hard-sm backdrop-blur-sm transition-all duration-200 ${
-          carted ? "btn-glow text-white" : "bg-black/45 text-white/90 hover:bg-black/70 hover:text-white"
+        className={`absolute right-3 top-3 flex items-center gap-1 rounded-none border px-2.5 py-1 text-xs font-semibold shadow-hard-sm transition-all duration-200 ${
+          carted
+            ? "btn-glow text-white"
+            : "border-white/15 bg-ink-950/90 text-white/90 hover:bg-ink-950 hover:text-white"
         }`}
       >
         {carted ? <Check size={12} aria-hidden="true" /> : <Plus size={12} aria-hidden="true" />}

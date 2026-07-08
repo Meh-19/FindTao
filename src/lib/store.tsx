@@ -53,14 +53,20 @@ function rowToStore(row: DirectoryRow): StoreInfo {
 }
 
 export type CardSize = "s" | "m" | "l";
-export type AccentId = "violet" | "blue" | "emerald" | "rose" | "amber";
+export type AccentId = "mono" | "signal" | "acid" | "cobalt" | "amber";
 
-export const ACCENTS: Record<AccentId, [string, string, string]> = {
-  violet: ["#8b5cf6", "#d946ef", "#22d3ee"],
-  blue: ["#3b82f6", "#8b5cf6", "#22d3ee"],
-  emerald: ["#10b981", "#22d3ee", "#a3e635"],
-  rose: ["#f43f5e", "#d946ef", "#f59e0b"],
-  amber: ["#f59e0b", "#ef4444", "#eab308"],
+/**
+ * Accent themes — each is a single flat color (no gradients, keeps the
+ * "Streetwear Index" brutalist base) applied to CTA buttons, highlighted
+ * text, and hard-shadow tints via the --acc1/--acc-ink CSS variables.
+ * `ink` is the readable text color to put on top of `fg`.
+ */
+export const ACCENTS: Record<AccentId, { label: string; fg: string; ink: string }> = {
+  mono: { label: "Mono", fg: "#ffffff", ink: "#000000" },
+  signal: { label: "Signal Red", fg: "#ef4444", ink: "#ffffff" },
+  acid: { label: "Acid Green", fg: "#a3e635", ink: "#000000" },
+  cobalt: { label: "Cobalt Blue", fg: "#3b82f6", ink: "#ffffff" },
+  amber: { label: "Amber", fg: "#f59e0b", ink: "#000000" },
 };
 
 export interface Prefs {
@@ -179,7 +185,7 @@ const DEFAULT_PREFS: Prefs = {
   currency: "USD",
   oneClick: false,
   cardSize: "m",
-  accent: "violet",
+  accent: "mono",
   autoPrices: true,
   activeHaulId: "main",
   myRefs: {},
@@ -373,13 +379,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, []);
 
-  // Accent theme → CSS variables consumed by .flow-bg / .flow-text / .btn-glow.
+  // Accent theme → CSS variables consumed by .flow-bg / .flow-text / .btn-glow / .card-pop.
   useEffect(() => {
-    const [a, b, c] = ACCENTS[prefs.accent] ?? ACCENTS.violet;
+    const { fg, ink } = ACCENTS[prefs.accent] ?? ACCENTS.mono;
     const root = document.documentElement;
-    root.style.setProperty("--acc1", a);
-    root.style.setProperty("--acc2", b);
-    root.style.setProperty("--acc3", c);
+    root.style.setProperty("--acc1", fg);
+    root.style.setProperty("--acc-ink", ink);
   }, [prefs.accent]);
 
   const setPrefs = useCallback((update: Partial<Prefs>) => {

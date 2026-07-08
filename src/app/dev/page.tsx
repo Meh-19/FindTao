@@ -174,7 +174,7 @@ function AddStore() {
       )}
       <div className="mt-3 flex items-center gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-xs text-mist-300">
-          <input type="checkbox" checked={discover} onChange={(e) => setDiscover(e.target.checked)} className="accent-violet-500" />
+          <input type="checkbox" checked={discover} onChange={(e) => setDiscover(e.target.checked)} className="accent-white" />
           Show in Discover
         </label>
         <button onClick={add} disabled={busy} className="btn-glow ml-auto rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
@@ -281,7 +281,7 @@ function StoreRow({
           checked={selected}
           onChange={(e) => onSelect(e.target.checked)}
           aria-label={`Select ${store.name}`}
-          className="accent-violet-500"
+          className="accent-white"
         />
         <span
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-[9px] font-bold text-white"

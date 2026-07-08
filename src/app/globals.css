@@ -65,38 +65,37 @@ body {
   50% { opacity: 0.4; }
 }
 
-/* Kept as flat currentColor-ish tokens so every component that still
-   references --acc1..3 / .flow-bg / .flow-text renders solid white/black
-   instead of the old animated gradient. */
+/* Accent theme — a single flat color (no gradients, stays brutalist),
+   settable from Settings → Theme. --acc1 is the accent fill, --acc-ink is
+   the readable text color on top of it. Defaults to mono (white/black). */
 :root {
   --acc1: #ffffff;
-  --acc2: #ffffff;
-  --acc3: #ffffff;
+  --acc-ink: #000000;
 }
 
 .flow-bg {
-  background: #fff;
+  background: var(--acc1);
 }
 
 .flow-text {
-  color: #fff;
+  color: var(--acc1);
 }
 
-/* Solid white block button with a hard offset shadow — shifts flush on
-   press instead of glowing. This is the "Streetwear Index" primary CTA. */
+/* Solid accent-color block button with a hard offset shadow — shifts flush
+   on press instead of glowing. This is the "Streetwear Index" primary CTA. */
 .btn-glow {
-  background: #fff;
-  color: #000 !important;
-  box-shadow: 4px 4px 0 0 #fff3;
-  border: 1px solid #fff;
+  background: var(--acc1);
+  color: var(--acc-ink) !important;
+  box-shadow: 4px 4px 0 0 color-mix(in srgb, var(--acc1) 35%, transparent);
+  border: 1px solid var(--acc1);
   transition: box-shadow 0.12s ease, transform 0.12s ease;
 }
 .btn-glow:hover {
-  box-shadow: 6px 6px 0 0 #fff3;
+  box-shadow: 6px 6px 0 0 color-mix(in srgb, var(--acc1) 35%, transparent);
   transform: translate(-1px, -1px);
 }
 .btn-glow:active {
-  box-shadow: 1px 1px 0 0 #fff3;
+  box-shadow: 1px 1px 0 0 color-mix(in srgb, var(--acc1) 35%, transparent);
   transform: translate(3px, 3px);
 }
 
@@ -113,8 +112,8 @@ body {
 }
 .card-pop:hover {
   transform: translate(-2px, -2px);
-  border-color: rgb(255 255 255 / 0.7);
-  box-shadow: 4px 4px 0 0 rgb(255 255 255 / 0.15);
+  border-color: color-mix(in srgb, var(--acc1) 70%, transparent);
+  box-shadow: 4px 4px 0 0 color-mix(in srgb, var(--acc1) 18%, transparent);
 }
 
 .fade-up {

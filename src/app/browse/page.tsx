@@ -118,15 +118,15 @@ function SearchView() {
 
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-mist-300">
         <label className={chipClass}>
-          <input type="checkbox" checked={qcOnly} onChange={(e) => setQcOnly(e.target.checked)} className="accent-violet-500" />
+          <input type="checkbox" checked={qcOnly} onChange={(e) => setQcOnly(e.target.checked)} className="accent-white" />
           Has QC photos
         </label>
         <label className={chipClass}>
-          <input type="checkbox" checked={trustedOnly} onChange={(e) => setTrustedOnly(e.target.checked)} className="accent-violet-500" />
+          <input type="checkbox" checked={trustedOnly} onChange={(e) => setTrustedOnly(e.target.checked)} className="accent-white" />
           Trusted sellers
         </label>
         <label className={chipClass}>
-          <input type="checkbox" checked={wishOnly} onChange={(e) => setWishOnly(e.target.checked)} className="accent-violet-500" />
+          <input type="checkbox" checked={wishOnly} onChange={(e) => setWishOnly(e.target.checked)} className="accent-white" />
           <Heart size={13} aria-hidden="true" className={wishOnly ? "fill-current" : ""} /> Wishlist only
         </label>
         <label className="flex items-center gap-2 rounded-none border border-ink-500 px-3 py-1.5">
@@ -138,7 +138,7 @@ function SearchView() {
             step={10}
             value={maxPrice}
             onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="accent-violet-500"
+            className="accent-white"
           />
           <span className="w-8 font-semibold text-mist-100">{maxPrice}</span>
         </label>

@@ -181,7 +181,11 @@ export function AlbumModal({
 
         {live && (
           <div className="shrink-0 space-y-2.5 border-t border-white/5 px-5 py-3.5">
-            <div className="flex items-center justify-between gap-3">
+            {/* BUG FIX: on narrow viewports this row had no room to fit price +
+                qty stepper + "Add to cart" on one line, so the button text
+                wrapped into three lines and mangled the layout — stack it
+                on small screens instead. */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 {priceCny !== null ? (
                   <p className="text-lg font-extrabold tabular-nums text-mist-100">
@@ -235,7 +239,7 @@ export function AlbumModal({
                     toast(`Added ${qty} × ${album.name.slice(0, 40)} to cart`);
                     setQty(1);
                   }}
-                  className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
+                  className="btn-glow flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-none px-4 py-2 text-sm font-semibold text-white"
                 >
                   <ShoppingCart size={14} aria-hidden="true" /> Add to cart
                 </button>

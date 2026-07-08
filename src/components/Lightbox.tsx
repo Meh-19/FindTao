@@ -80,12 +80,17 @@ export function Lightbox({
           </button>
         </div>
 
-        {/* UI FIX: object-contain + max-h-[80vh] — never crops or stretches, regardless of source aspect ratio. */}
-        <div className="flex w-full items-center justify-center border border-white/10 bg-ink-950">
+        {/* UI FIX: object-contain + max-h-[80vh] — never crops or stretches,
+            regardless of source aspect ratio. `min-w-0` on the flex row is
+            required here: flex children default to `min-width: auto`, which
+            for a replaced element like <img> means the browser refuses to
+            shrink it below its intrinsic width — wide/landscape photos were
+            overflowing straight past the modal edge without it. */}
+        <div className="flex min-w-0 w-full items-center justify-center border border-white/10 bg-ink-950">
           <img
             src={current.src}
             alt={current.alt}
-            className="max-h-[80vh] w-auto max-w-full object-contain"
+            className="max-h-[80vh] min-w-0 w-auto max-w-full object-contain"
             onLoad={(e) => {
               const img = e.currentTarget;
               setDims({ w: img.naturalWidth, h: img.naturalHeight });

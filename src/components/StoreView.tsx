@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, ExternalLink, Images, Plus, Star } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Images, Plus, ShoppingCart, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
@@ -105,7 +105,7 @@ function MarketplacePreview({
 export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
-    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted,
+    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(id);
@@ -309,54 +309,83 @@ export function StoreView({ id }: { id: string }) {
                 // leaving the card with no price info at all.
                 const parsedPrice = parsePriceCnyDetailed(album.name);
                 const price = parsedPrice?.value ?? null;
+                // Quick-add only makes sense for live Yupoo albums — placeholder
+                // albums have no real yupooId/cover to attach a cart line to.
+                const canQuickAdd = Boolean(yupooHost && album.yupooId);
                 return (
-                  <button
+                  <div
                     key={album.id}
-                    onClick={() => setOpenAlbum(album)}
-                    className="card-pop fade-up group overflow-hidden rounded-none border border-white/5 bg-ink-800/80 text-left"
+                    className="card-pop fade-up group relative overflow-hidden rounded-none border border-white/5 bg-ink-800/80"
                     style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
                   >
-                    <div
-                      className="tile-shimmer relative flex aspect-square items-center justify-center overflow-hidden"
-                      style={
-                        album.cover && yupooHost
-                          ? undefined
-                          : { background: "#1a1a1a" }
-                      }
-                    >
-                      {album.cover && yupooHost ? (
-                        <img
-                          src={proxiedImg(album.cover, yupooHost)}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-                        />
-                      ) : (
-                        <Images size={22} aria-hidden="true" className="text-white/70" />
-                      )}
-                      <span className="absolute bottom-2 right-2 rounded-none bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white/85 backdrop-blur-sm">
-                        {album.photoCount} photos
-                      </span>
-                    </div>
-                    <div className="p-3">
-                      <p className="line-clamp-2 min-h-9 text-sm font-medium leading-snug text-mist-100" title={album.name}>
-                        {album.name}
-                      </p>
-                      {price !== null ? (
-                        <p className="mt-1.5 text-sm font-semibold tabular-nums text-mist-100">
-                          {formatMoney(price, "CNY")}
-                          {parsedPrice?.estimate && (
-                            <span className="ml-1 font-mono text-[9px] font-normal uppercase tracking-wide text-mist-500">
-                              ¥ (est.)
-                            </span>
-                          )}{" "}
-                          <span className="flow-text text-xs font-bold">≈ {fmtConverted(price)}</span>
+                    <button onClick={() => setOpenAlbum(album)} className="block w-full text-left">
+                      <div
+                        className="tile-shimmer relative flex aspect-square items-center justify-center overflow-hidden"
+                        style={
+                          album.cover && yupooHost
+                            ? undefined
+                            : { background: "#1a1a1a" }
+                        }
+                      >
+                        {album.cover && yupooHost ? (
+                          <img
+                            src={proxiedImg(album.cover, yupooHost)}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                          />
+                        ) : (
+                          <Images size={22} aria-hidden="true" className="text-white/70" />
+                        )}
+                        <span className="absolute bottom-2 right-2 rounded-none border border-white/10 bg-ink-950/90 px-2 py-0.5 text-[10px] font-medium text-white/85">
+                          {album.photoCount} photos
+                        </span>
+                      </div>
+                      <div className="p-3">
+                        <p className="line-clamp-2 min-h-9 text-sm font-medium leading-snug text-mist-100" title={album.name}>
+                          {album.name}
                         </p>
-                      ) : (
-                        <p className="mt-1.5 text-[11px] text-mist-500">Tap for details</p>
-                      )}
-                    </div>
-                  </button>
+                        {price !== null ? (
+                          <p className="mt-1.5 text-sm font-semibold tabular-nums text-mist-100">
+                            {formatMoney(price, "CNY")}
+                            {parsedPrice?.estimate && (
+                              <span className="ml-1 font-mono text-[9px] font-normal uppercase tracking-wide text-mist-500">
+                                ¥ (est.)
+                              </span>
+                            )}{" "}
+                            <span className="flow-text text-xs font-bold">≈ {fmtConverted(price)}</span>
+                          </p>
+                        ) : (
+                          <p className="mt-1.5 text-[11px] text-mist-500">Tap for details</p>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Quick add — hover-revealed on desktop, always shown on
+                        touch (no hover state) via opacity-100 md:opacity-0. */}
+                    {canQuickAdd && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart({
+                            id: `album:${yupooHost}:${album.yupooId}`,
+                            title: album.name,
+                            priceCny: price,
+                            image: album.cover ?? null,
+                            imgHost: yupooHost,
+                            storeId: store!.id,
+                            storeName: store!.name,
+                            url: null,
+                          });
+                          toast(`Added ${album.name.slice(0, 40)} to cart`);
+                        }}
+                        aria-label={`Quick add ${album.name} to cart`}
+                        className="absolute right-2 top-2 flex items-center gap-1 rounded-none border border-white/15 bg-ink-950/90 px-2 py-1.5 text-white/90 opacity-100 shadow-hard-sm transition-all duration-150 hover:bg-ink-950 hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                      >
+                        <ShoppingCart size={13} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
