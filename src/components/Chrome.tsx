@@ -12,6 +12,7 @@ const VIEW_LABEL: Record<string, string> = {
   browse: "Search",
   library: "Library",
   discover: "Discover",
+  advisor: "AI Advisor",
   convert: "Converter",
   hauls: "Hauls",
   tracking: "Tracking",

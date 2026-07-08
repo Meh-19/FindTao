@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BadgeDollarSign, Globe, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BadgeDollarSign, Globe, MessageSquareText, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
 import { STORE_CATEGORIES, type StoreCategory, type StoreInfo } from "@/data/stores";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore, type TagDef } from "@/lib/store";
@@ -397,6 +397,179 @@ function StoreManager() {
   );
 }
 
+interface ReviewRow {
+  id: number;
+  store_id: string;
+  author: string;
+  content: string;
+  created_at: string;
+}
+
+/**
+ * Discrub (a Discord export extension) ships an array of message objects —
+ * usually `{ content, author: { username } | author: "name", ... }`. This
+ * accepts that shape, a flat `{author, content}[]`, or just falls back to
+ * treating the whole paste as one review if it isn't recognizable JSON.
+ */
+function parseImport(text: string): { author: string; content: string }[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  try {
+    const data = JSON.parse(trimmed);
+    if (Array.isArray(data)) {
+      const rows: { author: string; content: string }[] = [];
+      for (const raw of data) {
+        if (typeof raw !== "object" || raw === null) continue;
+        const r = raw as Record<string, unknown>;
+        const content = typeof r.content === "string" ? r.content : typeof r.message === "string" ? r.message : "";
+        if (!content.trim()) continue;
+        const authorRaw = r.author;
+        const author =
+          typeof authorRaw === "string"
+            ? authorRaw
+            : typeof authorRaw === "object" && authorRaw !== null
+              ? ((authorRaw as Record<string, unknown>).username as string | undefined) ??
+                ((authorRaw as Record<string, unknown>).name as string | undefined) ??
+                "Unknown"
+              : "Unknown";
+        rows.push({ author, content: content.trim() });
+      }
+      return rows;
+    }
+  } catch {
+    // not JSON — fall through to plain-text handling
+  }
+  return [{ author: "Imported", content: trimmed }];
+}
+
+function ReviewManager() {
+  const { sb, directory, toast } = useStore();
+  const [storeId, setStoreId] = useState("");
+  const [customStoreId, setCustomStoreId] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  const effectiveStoreId = (storeId || customStoreId).trim();
+
+  useEffect(() => {
+    if (!sb || !effectiveStoreId) {
+      setReviews([]);
+      setLoadedFor(null);
+      return;
+    }
+    let cancelled = false;
+    sb.from("store_reviews")
+      .select("id, store_id, author, content, created_at")
+      .eq("store_id", effectiveStoreId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setReviews((data as ReviewRow[] | null) ?? []);
+        setLoadedFor(effectiveStoreId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sb, effectiveStoreId]);
+
+  async function importText() {
+    if (!sb || busy) return;
+    if (!effectiveStoreId) {
+      toast("Pick or type a store id first", "error");
+      return;
+    }
+    const parsed = parseImport(text);
+    if (parsed.length === 0) {
+      toast("Nothing to import — paste some text or a Discrub JSON export", "error");
+      return;
+    }
+    setBusy(true);
+    const { error } = await sb
+      .from("store_reviews")
+      .insert(parsed.map((r) => ({ store_id: effectiveStoreId, author: r.author, content: r.content })));
+    if (error) {
+      toast(error.message, "error");
+    } else {
+      toast(`Imported ${parsed.length} review${parsed.length === 1 ? "" : "s"} for ${effectiveStoreId}`);
+      setText("");
+      const { data } = await sb
+        .from("store_reviews")
+        .select("id, store_id, author, content, created_at")
+        .eq("store_id", effectiveStoreId)
+        .order("created_at", { ascending: false });
+      setReviews((data as ReviewRow[] | null) ?? []);
+    }
+    setBusy(false);
+  }
+
+  async function remove(id: number) {
+    if (!sb) return;
+    const { error } = await sb.from("store_reviews").delete().eq("id", id);
+    if (error) toast(error.message, "error");
+    else setReviews((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  return (
+    <Section
+      icon={MessageSquareText}
+      title="Store reviews"
+      blurb="Sizing/fit notes the AI Advisor reads for its recommendation. Paste raw text or a Discrub JSON export — one message per review row."
+    >
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className={inputClass}>
+          <option value="">Pick a directory store…</option>
+          {directory.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={customStoreId}
+          onChange={(e) => setCustomStoreId(e.target.value)}
+          placeholder="…or type a store id directly"
+          className={`${inputClass} flex-1`}
+        />
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={5}
+        placeholder={'Paste Discord messages, or a Discrub JSON export, e.g.\n[{"author":"user#1234","content":"runs small, sized up and it fit great"}]'}
+        className={`${inputClass} mt-2 w-full font-mono text-xs`}
+      />
+      <button onClick={importText} disabled={busy} className="btn-glow mt-2 rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {busy ? "Importing…" : "Import"}
+      </button>
+
+      {loadedFor && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-mist-500">
+            {reviews.length} review{reviews.length === 1 ? "" : "s"} for {loadedFor}
+          </p>
+          {reviews.length > 0 && (
+            <div className="mt-2 max-h-64 space-y-1.5 overflow-y-auto">
+              {reviews.map((r) => (
+                <div key={r.id} className="flex items-start justify-between gap-2 border border-white/5 bg-ink-900/60 px-3 py-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-medium text-mist-300">{r.author}</p>
+                    <p className="mt-0.5 text-mist-400">{r.content}</p>
+                  </div>
+                  <button onClick={() => remove(r.id)} aria-label="Delete review" className="shrink-0 text-mist-500 hover:text-red-400">
+                    <Trash2 size={12} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function TagManager() {
   const { sb, tagDefs, refreshTagDefs, toast } = useStore();
   const [kind, setKind] = useState<"store" | "user">("store");
@@ -602,6 +775,7 @@ export default function DevPage() {
         <AddStore />
         <BulkAdd />
         <StoreManager />
+        <ReviewManager />
         <RefCodeManager />
         <TagManager />
         <UserManager />

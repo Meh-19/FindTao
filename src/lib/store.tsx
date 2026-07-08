@@ -10,6 +10,7 @@ import { withRef } from "./links";
 import { resolveSupabase } from "./supabase";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
+import { EMPTY_MEASUREMENTS, type Measurements } from "./measurements";
 
 /** Always treated as admin, before any profile tags load. */
 export const OWNER_EMAIL = "ren.tipton@icloud.com";
@@ -147,6 +148,35 @@ function sanitizeHauls(value: unknown): Haul[] {
   return out;
 }
 
+function sanitizeMeasurements(value: unknown): Measurements {
+  if (typeof value !== "object" || value === null) return EMPTY_MEASUREMENTS;
+  const r = value as Partial<Measurements>;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return {
+    unit: r.unit === "cm" ? "cm" : "in",
+    heightCm: num(r.heightCm),
+    weightKg: num(r.weightKg),
+    chestCm: num(r.chestCm),
+    shoulderWidthCm: num(r.shoulderWidthCm),
+    sleeveLengthCm: num(r.sleeveLengthCm),
+    bodyLengthCm: num(r.bodyLengthCm),
+    neckCm: num(r.neckCm),
+    waistCm: num(r.waistCm),
+    hipsCm: num(r.hipsCm),
+    inseamCm: num(r.inseamCm),
+    thighCm: num(r.thighCm),
+    riseCm: num(r.riseCm),
+    shoeSizeUs: num(r.shoeSizeUs),
+    shoeSizeEu: num(r.shoeSizeEu),
+    shoeSizeUk: num(r.shoeSizeUk),
+    footLengthCm: num(r.footLengthCm),
+    fitPreference:
+      r.fitPreference === "slim" || r.fitPreference === "relaxed" || r.fitPreference === "oversized"
+        ? r.fitPreference
+        : "regular",
+  };
+}
+
 export interface TrackedPkg {
   number: string;
   carrier: string;
@@ -178,6 +208,7 @@ interface CloudSnapshot {
   favStores: string[];
   userStores: StoreInfo[];
   tracking: TrackedPkg[];
+  measurements: Measurements;
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -202,6 +233,7 @@ const K = {
   favStores: "findtao:favstores",
   userStores: "findtao:userstores",
   tracking: "findtao:tracking",
+  measurements: "findtao:measurements",
   fx: "findtao:fx",
 };
 
@@ -254,6 +286,9 @@ interface Store {
   tracking: TrackedPkg[];
   addTracking: (pkg: TrackedPkg) => void;
   removeTracking: (number: string) => void;
+  /** Body measurements + fit preference for the AI Advisor — persisted like everything else. */
+  measurements: Measurements;
+  setMeasurements: (update: Partial<Measurements>) => void;
   toasts: Toast[];
   toast: (msg: string, type?: Toast["type"]) => void;
   /** False when Supabase config is unavailable — sign-in is disabled. */
@@ -303,6 +338,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [favStores, setFavStores] = useState<string[]>([]);
   const [userStores, setUserStores] = useState<StoreInfo[]>([]);
   const [tracking, setTracking] = useState<TrackedPkg[]>([]);
+  const [measurements, setMeasurementsState] = useState<Measurements>(EMPTY_MEASUREMENTS);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
   const [user, setUser] = useState<CloudUser | null>(null);
@@ -341,6 +377,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setFavStores(read(K.favStores, []));
     setUserStores(read(K.userStores, []));
     setTracking(read(K.tracking, []));
+    setMeasurementsState(sanitizeMeasurements(read(K.measurements, EMPTY_MEASUREMENTS)));
     setHydrated(true);
   }, []);
 
@@ -354,7 +391,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(K.favStores, JSON.stringify(favStores));
     window.localStorage.setItem(K.userStores, JSON.stringify(userStores));
     window.localStorage.setItem(K.tracking, JSON.stringify(tracking));
-  }, [hydrated, prefs, wishlist, cart, hauls, library, favStores, userStores, tracking]);
+    window.localStorage.setItem(K.measurements, JSON.stringify(measurements));
+  }, [hydrated, prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements]);
 
   // Live CNY rates, cached for 12h; FALLBACK_RATES until the fetch lands or on failure.
   useEffect(() => {
@@ -509,6 +547,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLibrary((prev) => [...prev, store.id]);
   }, []);
 
+  const setMeasurements = useCallback((update: Partial<Measurements>) => {
+    setMeasurementsState((prev) => ({ ...prev, ...update }));
+  }, []);
+
   const addTracking = useCallback((pkg: TrackedPkg) => {
     setTracking((prev) => [pkg, ...prev.filter((p) => p.number !== pkg.number)]);
   }, []);
@@ -518,8 +560,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const snapshot = useMemo<CloudSnapshot>(
-    () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking }),
-    [prefs, wishlist, cart, hauls, library, favStores, userStores, tracking],
+    () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements }),
+    [prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements],
   );
 
   const applySnapshot = useCallback((s: Partial<CloudSnapshot>) => {
@@ -534,6 +576,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (Array.isArray(s.favStores)) setFavStores(s.favStores);
     if (Array.isArray(s.userStores)) setUserStores(s.userStores);
     if (Array.isArray(s.tracking)) setTracking(s.tracking);
+    if (s.measurements) setMeasurementsState(sanitizeMeasurements(s.measurements));
   }, []);
 
   // Watch Supabase auth state. No-op in local-only mode.
@@ -864,6 +907,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tracking,
       addTracking,
       removeTracking,
+      measurements,
+      setMeasurements,
       toasts,
       toast,
       cloudEnabled: sb !== null,
@@ -897,7 +942,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
       removeFromHaul, assignCartToHaul, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
-      tracking, addTracking, removeTracking, toasts, toast,
+      tracking, addTracking, removeTracking, measurements, setMeasurements, toasts, toast,
       sb, user, profileName, syncStatus, lastSyncAt, authOpen,
       signInWithEmail, signInWithPassword, signUp, updatePassword, signOut, syncNow,
       agentRefs, refreshAgentRefs, applyRef,

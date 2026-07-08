@@ -152,3 +152,29 @@ drop policy if exists "admin updates stores" on public.store_directory;
 create policy "admin updates stores" on public.store_directory for update using (public.is_admin());
 drop policy if exists "admin deletes stores" on public.store_directory;
 create policy "admin deletes stores" on public.store_directory for delete using (public.is_admin());
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Store reviews — sizing/fit notes imported from Discord exports (Discrub
+-- JSON or plain text), one row per message. Managed from /dev; read by
+-- everyone so the AI Advisor can factor them into its recommendation for any
+-- signed-in or local-only user, not just the admin who imported them.
+-- `store_id` is a loose text reference (not a foreign key) since a review
+-- can be imported for a store before/without it existing in the directory.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.store_reviews (
+  id bigint generated always as identity primary key,
+  store_id text not null,
+  author text not null default 'Unknown',
+  content text not null,
+  source text not null default 'discord',
+  created_at timestamptz not null default now()
+);
+alter table public.store_reviews enable row level security;
+create index if not exists store_reviews_store_id_idx on public.store_reviews (store_id);
+
+drop policy if exists "anyone reads reviews" on public.store_reviews;
+create policy "anyone reads reviews" on public.store_reviews for select using (true);
+drop policy if exists "admin inserts reviews" on public.store_reviews;
+create policy "admin inserts reviews" on public.store_reviews for insert with check (public.is_admin());
+drop policy if exists "admin deletes reviews" on public.store_reviews;
+create policy "admin deletes reviews" on public.store_reviews for delete using (public.is_admin());
