@@ -55,6 +55,12 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const host = params.get("host") ?? "";
   const id = params.get("id") ?? "";
+  // Store pages bulk-prefetch the description (for price) of every album on
+  // load — `light=1` skips the photo-list scan for those calls so the
+  // response for ~20 parallel requests isn't dragging a full photo array
+  // each. The full fetch (photos included) still runs when a shopper
+  // actually opens the album.
+  const light = params.get("light") === "1";
   if (!isValidYupooHost(host) || !/^\d+$/.test(id)) {
     return Response.json({ error: "invalid params" }, { status: 400 });
   }
@@ -69,6 +75,15 @@ export async function GET(request: Request) {
     }
     const html = await res.text();
 
+    const description = extractDescription(html);
+
+    if (light) {
+      return Response.json(
+        { description },
+        { headers: { "Cache-Control": "public, max-age=900" } },
+      );
+    }
+
     const photos: string[] = [];
     const seen = new Set<string>();
     for (const m of html.matchAll(/data-src="((?:https?:)?\/\/photo\.yupoo\.com[^"]+)"/g)) {
@@ -78,8 +93,6 @@ export async function GET(request: Request) {
         photos.push(url);
       }
     }
-
-    const description = extractDescription(html);
 
     // Scan the description first (accurate — it's just this album's text);
     // fall back to the full page only if we couldn't isolate a description.

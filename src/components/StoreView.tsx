@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ExternalLink, Images, Plus, ShoppingCart, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
-import { parsePriceCnyDetailed } from "@/lib/price";
+import { parsePriceCnyDetailed, type ParsedPrice } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { AlbumModal } from "./AlbumModal";
@@ -34,6 +34,20 @@ async function fetchAlbums(
     hasMore: data.hasMore ?? false,
   };
 }
+
+/** Real price lives in the album description, not the title (see AlbumModal) — fetch just that. */
+async function fetchAlbumDescription(host: string, yupooId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/yupoo/album?host=${encodeURIComponent(host)}&id=${yupooId}&light=1`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { description?: string | null };
+    return data.description ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const PRICE_PREFETCH_CONCURRENCY = 6;
 
 /**
  * Preview card for marketplace-hosted stores. Weidian shops get their live
@@ -167,6 +181,42 @@ export function StoreView({ id }: { id: string }) {
   const liveMode = yupooHost !== null && !liveFailed;
   const albums = liveMode ? (liveAlbums ?? []) : platform.platform === "other" ? placeholderAlbums : [];
   const albumsLoading = liveMode && liveAlbums === null;
+
+  // Real prices live in each album's description, not its title (see
+  // AlbumModal) — pull them all in as the grid loads so quick-add uses the
+  // real price and shoppers don't have to open every album just to see it.
+  const [albumPrices, setAlbumPrices] = useState<Record<string, ParsedPrice | null>>({});
+  const requestedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    requestedRef.current = new Set();
+    setAlbumPrices({});
+  }, [yupooHost]);
+
+  useEffect(() => {
+    if (!yupooHost) return;
+    const toFetch = albums.filter((a) => a.yupooId && !requestedRef.current.has(a.id));
+    if (toFetch.length === 0) return;
+    for (const a of toFetch) requestedRef.current.add(a.id);
+
+    let cancelled = false;
+    let cursor = 0;
+    async function worker() {
+      while (cursor < toFetch.length) {
+        const album = toFetch[cursor++];
+        const description = await fetchAlbumDescription(yupooHost!, album.yupooId!);
+        if (cancelled) return;
+        setAlbumPrices((prev) => ({
+          ...prev,
+          [album.id]: parsePriceCnyDetailed(description ?? album.name),
+        }));
+      }
+    }
+    for (let i = 0; i < Math.min(PRICE_PREFETCH_CONCURRENCY, toFetch.length); i++) worker();
+    return () => {
+      cancelled = true;
+    };
+  }, [yupooHost, albums]);
 
   if (!hydrated) return null;
   if (!store) {
@@ -305,9 +355,11 @@ export function StoreView({ id }: { id: string }) {
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {albums.map((album, i) => {
-                // BUG FIX: fall back to a scanned/estimated price instead of
-                // leaving the card with no price info at all.
-                const parsedPrice = parsePriceCnyDetailed(album.name);
+                // Prefer the bulk-prefetched description price (real, from
+                // the seller's listing text); fall back to a title-scanned
+                // guess until that fetch lands, or for placeholder albums
+                // that never get a description fetch at all.
+                const parsedPrice = album.id in albumPrices ? albumPrices[album.id] : parsePriceCnyDetailed(album.name);
                 const price = parsedPrice?.value ?? null;
                 // Quick-add only makes sense for live Yupoo albums — placeholder
                 // albums have no real yupooId/cover to attach a cart line to.
