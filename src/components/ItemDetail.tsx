@@ -8,6 +8,7 @@ import { itemLink, itemStore, CATEGORY_WEIGHT_G } from "@/data/catalog";
 import { Thumb } from "./Thumb";
 import { AgentActions } from "./AgentActions";
 import { CopyButton } from "./CopyButton";
+import { catalogToSaved } from "./ItemCard";
 import { useStore } from "@/lib/store";
 
 const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
@@ -74,10 +75,10 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
 }
 
 export function ItemDetail({ item }: { item: CatalogItem }) {
-  const { inCart, toggleCart, wishlist, toggleWishlist, hydrated, fmtCny, toast } = useStore();
+  const { inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast } = useStore();
   const link = itemLink(item);
   const store = itemStore(item);
-  const carted = hydrated && inCart(item.id);
+  const carted = hydrated && inCart(`cat:${item.id}`);
   const wished = hydrated && wishlist.includes(item.id);
   const trusted = store.trust >= 85;
   const [qcOpen, setQcOpen] = useState<number | null>(null);
@@ -173,8 +174,11 @@ export function ItemDetail({ item }: { item: CatalogItem }) {
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  toggleCart(item.id);
-                  if (!carted) toast("Added to cart");
+                  if (carted) removeFromCart(`cat:${item.id}`);
+                  else {
+                    addToCart(catalogToSaved(item));
+                    toast("Added to cart");
+                  }
                 }}
                 aria-pressed={carted}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-200 ${

@@ -2,16 +2,35 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Link2, X } from "lucide-react";
-import { getItem } from "@/data/catalog";
-import { Thumb } from "./Thumb";
-import { useStore } from "@/lib/store";
+import { ImageOff, Link2, Minus, Plus, X } from "lucide-react";
+import { encodeCart } from "@/lib/share";
+import { proxiedImg } from "@/lib/yupoo";
+import { useStore, type SavedItem } from "@/lib/store";
 import { formatMoney } from "@/lib/currency";
+
+function LineThumb({ item }: { item: SavedItem }) {
+  if (item.image && item.imgHost) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={proxiedImg(item.image, item.imgHost)}
+        alt=""
+        loading="lazy"
+        className="h-14 w-14 shrink-0 rounded-lg border border-white/5 object-cover"
+      />
+    );
+  }
+  return (
+    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-ink-700 text-mist-500">
+      <ImageOff size={16} aria-hidden="true" />
+    </span>
+  );
+}
 
 export function CartPanel() {
   const {
-    cart, cartOpen, setCartOpen, toggleCart, clearCart,
-    hauls, prefs, setPrefs, assignCartToHaul, fmtConverted, toast, hydrated,
+    cart, cartCount, cartOpen, setCartOpen, setCartQty, removeFromCart, clearCart,
+    hauls, prefs, setPrefs, assignCartToHaul, fmtConverted, toast, hydrated, allStores,
   } = useStore();
   const [targetHaul, setTargetHaul] = useState(prefs.activeHaulId);
 
@@ -25,18 +44,20 @@ export function CartPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [setCartOpen]);
 
-  const items = useMemo(
-    () => cart.map(getItem).filter((i): i is NonNullable<typeof i> => Boolean(i)),
-    [cart],
-  );
-  const totalCny = items.reduce((sum, i) => sum + i.priceCny, 0);
+  const priced = useMemo(() => cart.filter((l) => l.priceCny !== null), [cart]);
+  const totalCny = priced.reduce((sum, l) => sum + (l.priceCny ?? 0) * l.qty, 0);
+  const unpricedCount = cart.length - priced.length;
 
   if (!hydrated) return null;
 
+  function storeHref(line: SavedItem): string | null {
+    return allStores.some((s) => s.id === line.storeId) ? `/store/${line.storeId}` : null;
+  }
+
   function shareCart() {
-    const url = `${window.location.origin}/browse?cart=${cart.join(",")}`;
+    const url = `${window.location.origin}/browse?cart=${encodeCart(cart)}`;
     navigator.clipboard.writeText(url).then(
-      () => toast("Share link copied — opening it re-adds these items to the cart"),
+      () => toast("Share link copied — opening it adds these items to the cart"),
       () => toast("Couldn't copy the link", "error"),
     );
   }
@@ -45,7 +66,7 @@ export function CartPanel() {
     const haul = hauls.find((h) => h.id === targetHaul);
     assignCartToHaul(targetHaul);
     setPrefs({ activeHaulId: targetHaul });
-    toast(`Moved ${items.length} item${items.length === 1 ? "" : "s"} to ${haul?.name ?? "haul"}`);
+    toast(`Moved ${cartCount} item${cartCount === 1 ? "" : "s"} to ${haul?.name ?? "haul"}`);
     setCartOpen(false);
   }
 
@@ -66,10 +87,10 @@ export function CartPanel() {
         <div className="flow-bg h-0.5 shrink-0" />
         <div className="flex items-center justify-between px-5 py-4">
           <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-mist-300">
-            Cart <span className="text-mist-500">({items.length})</span>
+            Cart <span className="text-mist-500">({cartCount})</span>
           </h2>
           <div className="flex items-center gap-3">
-            {items.length > 0 && (
+            {cart.length > 0 && (
               <button
                 onClick={() => { clearCart(); toast("Cart cleared", "info"); }}
                 className="text-xs text-mist-500 transition-colors hover:text-red-400"
@@ -88,41 +109,75 @@ export function CartPanel() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5">
-          {items.length === 0 ? (
+          {cart.length === 0 ? (
             <p className="pt-10 text-center text-sm text-mist-500">
-              Cart is empty — add finds while you browse, then assign them to a haul.
+              Cart is empty — open an album while you browse and add pieces here, then assign
+              them to a haul.
             </p>
           ) : (
             <div className="space-y-2.5">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 rounded-xl border border-white/5 bg-ink-800/80 p-2.5">
-                  <Thumb item={item} className="h-12 w-14 shrink-0 rounded-lg" label={false} />
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/item/${item.id}`}
-                      onClick={() => setCartOpen(false)}
-                      className="line-clamp-1 text-xs font-medium text-mist-100 hover:underline"
+              {cart.map((line) => {
+                const href = storeHref(line);
+                return (
+                  <div key={line.id} className="flex gap-3 rounded-xl border border-white/5 bg-ink-800/80 p-2.5">
+                    <LineThumb item={line} />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-xs font-medium leading-snug text-mist-100" title={line.title}>
+                        {line.title}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-mist-500">
+                        {href ? (
+                          <Link href={href} onClick={() => setCartOpen(false)} className="hover:text-neon-300 hover:underline">
+                            {line.storeName}
+                          </Link>
+                        ) : (
+                          line.storeName
+                        )}
+                      </p>
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <div className="flex items-center rounded-lg border border-ink-500">
+                          <button
+                            onClick={() => setCartQty(line.id, line.qty - 1)}
+                            aria-label={`Decrease quantity of ${line.title}`}
+                            className="px-2 py-1 text-mist-400 transition-colors hover:text-white"
+                          >
+                            <Minus size={11} aria-hidden="true" />
+                          </button>
+                          <span className="min-w-6 text-center text-xs font-semibold tabular-nums text-mist-100">
+                            {line.qty}
+                          </span>
+                          <button
+                            onClick={() => setCartQty(line.id, line.qty + 1)}
+                            aria-label={`Increase quantity of ${line.title}`}
+                            className="px-2 py-1 text-mist-400 transition-colors hover:text-white"
+                          >
+                            <Plus size={11} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <p className="text-xs font-semibold tabular-nums text-mist-100">
+                          {line.priceCny !== null ? (
+                            formatMoney(line.priceCny * line.qty, "CNY")
+                          ) : (
+                            <span className="font-normal text-mist-500">price n/a</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeFromCart(line.id)}
+                      aria-label={`Remove ${line.title} from cart`}
+                      className="self-start rounded px-1 py-1 text-mist-500 hover:text-red-400"
                     >
-                      {item.title}
-                    </Link>
-                    <p className="text-[11px] text-mist-500">
-                      {formatMoney(item.priceCny, "CNY")} ≈ {fmtConverted(item.priceCny)}
-                    </p>
+                      <X size={13} aria-hidden="true" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => toggleCart(item.id)}
-                    aria-label="Remove from cart"
-                    className="rounded px-1.5 py-1 text-mist-500 hover:text-red-400"
-                  >
-                    <X size={14} aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {items.length > 0 && (
+        {cart.length > 0 && (
           <div className="shrink-0 border-t border-white/5 px-5 py-4">
             <div className="flex items-baseline justify-between text-sm">
               <span className="text-mist-400">Subtotal</span>
@@ -131,6 +186,11 @@ export function CartPanel() {
                 <span className="flow-text font-bold">≈ {fmtConverted(totalCny)}</span>
               </span>
             </div>
+            {unpricedCount > 0 && (
+              <p className="mt-1 text-right text-[11px] text-mist-500">
+                + {unpricedCount} item{unpricedCount === 1 ? "" : "s"} without a listed price
+              </p>
+            )}
             <div className="mt-3 flex gap-2">
               <select
                 value={targetHaul}

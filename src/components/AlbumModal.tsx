@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Images, Link2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images, Link2, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
 import { parseLink } from "@/lib/links";
+import { parsePriceCny } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
+import { useStore } from "@/lib/store";
+import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
 
 /**
@@ -26,11 +29,15 @@ export function AlbumModal({
   host: string | null;
   onClose: () => void;
 }) {
+  const { addToCart, fmtConverted, toast } = useStore();
   const [viewer, setViewer] = useState<number | null>(null);
+  const [qty, setQty] = useState(1);
   const live = Boolean(host && album.yupooId);
   // null = loading, [] = failed or empty (falls back to placeholder tiles)
   const [photos, setPhotos] = useState<string[] | null>(live ? null : []);
   const [itemLinks, setItemLinks] = useState<string[]>([]);
+
+  const priceCny = useMemo(() => parsePriceCny(album.name), [album.name]);
 
   useEffect(() => {
     if (!live) return;
@@ -171,21 +178,79 @@ export function AlbumModal({
           )}
         </div>
 
-        {marketplaceLink && (
-          <div className="shrink-0 border-t border-white/5 px-5 py-3.5">
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <AgentActions link={marketplaceLink} dropUp />
+        {live && (
+          <div className="shrink-0 space-y-2.5 border-t border-white/5 px-5 py-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                {priceCny !== null ? (
+                  <p className="text-lg font-extrabold tabular-nums text-mist-100">
+                    {formatMoney(priceCny, "CNY")}{" "}
+                    <span className="flow-text text-sm font-bold">≈ {fmtConverted(priceCny)}</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-mist-500">Price not listed — check with your agent</p>
+                )}
               </div>
-              <Link
-                href={`/convert?link=${encodeURIComponent(marketplaceLink.rawUrl)}`}
-                onClick={onClose}
-                aria-label="Open in converter"
-                className="rounded-xl border border-ink-500 p-2.5 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
-              >
-                <Link2 size={16} aria-hidden="true" />
-              </Link>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-xl border border-ink-500">
+                  <button
+                    onClick={() => setQty((q) => Math.max(1, q - 1))}
+                    aria-label="Decrease quantity"
+                    className="px-2.5 py-2 text-mist-400 transition-colors hover:text-white"
+                  >
+                    <Minus size={13} aria-hidden="true" />
+                  </button>
+                  <span className="min-w-7 text-center text-sm font-semibold tabular-nums text-mist-100">
+                    {qty}
+                  </span>
+                  <button
+                    onClick={() => setQty((q) => Math.min(99, q + 1))}
+                    aria-label="Increase quantity"
+                    className="px-2.5 py-2 text-mist-400 transition-colors hover:text-white"
+                  >
+                    <Plus size={13} aria-hidden="true" />
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    addToCart(
+                      {
+                        id: `album:${host}:${album.yupooId}`,
+                        title: album.name,
+                        priceCny,
+                        image: photos?.[0] ?? album.cover ?? null,
+                        imgHost: host,
+                        storeId: store.id,
+                        storeName: store.name,
+                        url: marketplaceLink?.rawUrl ?? null,
+                      },
+                      qty,
+                    );
+                    toast(`Added ${qty} × ${album.name.slice(0, 40)} to cart`);
+                    setQty(1);
+                  }}
+                  className="btn-glow flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                >
+                  <ShoppingCart size={14} aria-hidden="true" /> Add to cart
+                </button>
+              </div>
             </div>
+
+            {marketplaceLink && (
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <AgentActions link={marketplaceLink} dropUp />
+                </div>
+                <Link
+                  href={`/convert?link=${encodeURIComponent(marketplaceLink.rawUrl)}`}
+                  onClick={onClose}
+                  aria-label="Open in converter"
+                  className="rounded-xl border border-ink-500 p-2.5 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+                >
+                  <Link2 size={16} aria-hidden="true" />
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </div>

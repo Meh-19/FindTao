@@ -76,11 +76,69 @@ export interface Prefs {
   myRefs: Record<string, string>;
 }
 
+/**
+ * A self-contained product line — everything the cart and hauls need without
+ * a catalog lookup. Created from live Yupoo albums (and any future source).
+ */
+export interface SavedItem {
+  id: string;
+  title: string;
+  priceCny: number | null;
+  qty: number;
+  /** Raw photo.yupoo.com URL + owning store host — proxied at render time. */
+  image: string | null;
+  imgHost: string | null;
+  storeId: string;
+  storeName: string;
+  /** Marketplace item URL when known — powers the buy-on-agent links. */
+  url: string | null;
+}
+
 export interface Haul {
   id: string;
   name: string;
   budgetCny: number | null;
-  items: string[];
+  items: SavedItem[];
+}
+
+function sanitizeItems(value: unknown): SavedItem[] {
+  if (!Array.isArray(value)) return [];
+  const out: SavedItem[] = [];
+  for (const raw of value) {
+    // Drops v1 entries (plain catalog-id strings) along with anything malformed.
+    if (typeof raw !== "object" || raw === null) continue;
+    const r = raw as Partial<SavedItem>;
+    if (typeof r.id !== "string" || typeof r.title !== "string") continue;
+    out.push({
+      id: r.id,
+      title: r.title,
+      priceCny: typeof r.priceCny === "number" ? r.priceCny : null,
+      qty: typeof r.qty === "number" && r.qty >= 1 ? Math.floor(r.qty) : 1,
+      image: typeof r.image === "string" ? r.image : null,
+      imgHost: typeof r.imgHost === "string" ? r.imgHost : null,
+      storeId: typeof r.storeId === "string" ? r.storeId : "",
+      storeName: typeof r.storeName === "string" ? r.storeName : "",
+      url: typeof r.url === "string" ? r.url : null,
+    });
+  }
+  return out;
+}
+
+function sanitizeHauls(value: unknown): Haul[] {
+  if (!Array.isArray(value)) return [];
+  const out: Haul[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const r = raw as Partial<Haul> & { items?: unknown };
+    if (typeof r.id !== "string" || typeof r.name !== "string") continue;
+    out.push({
+      id: r.id,
+      name: r.name,
+      budgetCny: typeof r.budgetCny === "number" ? r.budgetCny : null,
+      items: sanitizeItems(r.items),
+    });
+  }
+  return out;
 }
 
 export interface TrackedPkg {
@@ -106,7 +164,7 @@ export interface CloudUser {
 interface CloudSnapshot {
   prefs: Prefs;
   wishlist: string[];
-  cart: string[];
+  cart: SavedItem[];
   hauls: Haul[];
   library: string[];
   favStores: string[];
@@ -132,7 +190,6 @@ const K = {
   wishlist: "findtao:wishlist",
   cart: "findtao:cart",
   hauls: "findtao:hauls",
-  legacyHaul: "findtao:haul",
   library: "findtao:library",
   favStores: "findtao:favstores",
   userStores: "findtao:userstores",
@@ -159,11 +216,15 @@ interface Store {
   fmtConverted: (amountCny: number) => string;
   wishlist: string[];
   toggleWishlist: (id: string) => void;
-  cart: string[];
+  cart: SavedItem[];
+  /** Total units across all cart lines — the badge number. */
+  cartCount: number;
   cartOpen: boolean;
   setCartOpen: (open: boolean) => void;
   inCart: (id: string) => boolean;
-  toggleCart: (id: string) => void;
+  addToCart: (item: Omit<SavedItem, "qty">, qty?: number) => void;
+  setCartQty: (id: string, qty: number) => void;
+  removeFromCart: (id: string) => void;
   clearCart: () => void;
   hauls: Haul[];
   activeHaul: Haul;
@@ -172,6 +233,7 @@ interface Store {
   deleteHaul: (id: string) => void;
   setHaulBudget: (id: string, budgetCny: number | null) => void;
   removeFromHaul: (haulId: string, itemId: string) => void;
+  importCart: (items: SavedItem[]) => void;
   assignCartToHaul: (haulId: string) => void;
   allStores: StoreInfo[];
   library: string[];
@@ -225,7 +287,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [rates, setRates] = useState<RateTable>(FALLBACK_RATES);
   const [ratesLive, setRatesLive] = useState(false);
   const [wishlist, setWishlist] = useState<string[]>([]);
-  const [cart, setCart] = useState<string[]>([]);
+  const [cart, setCart] = useState<SavedItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [hauls, setHauls] = useState<Haul[]>(DEFAULT_HAULS);
   const [library, setLibrary] = useState<string[]>(DEFAULT_LIBRARY_IDS);
@@ -263,15 +325,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setPrefsState({ ...DEFAULT_PREFS, ...read(K.prefs, {}) });
     setWishlist(read(K.wishlist, []));
-    setCart(read(K.cart, []));
-    const storedHauls = read<Haul[]>(K.hauls, []);
-    if (storedHauls.length > 0) {
-      setHauls(storedHauls);
-    } else {
-      // Migrate the v1 single-haul list into the main haul.
-      const legacy = read<string[]>(K.legacyHaul, []);
-      if (legacy.length > 0) setHauls([{ ...DEFAULT_HAULS[0], items: legacy }]);
-    }
+    setCart(sanitizeItems(read(K.cart, [])));
+    const storedHauls = sanitizeHauls(read(K.hauls, []));
+    if (storedHauls.length > 0) setHauls(storedHauls);
     setLibrary(read(K.library, DEFAULT_LIBRARY_IDS));
     setFavStores(read(K.favStores, []));
     setUserStores(read(K.userStores, []));
@@ -337,8 +393,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setWishlist((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
 
-  const toggleCart = useCallback((id: string) => {
-    setCart((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const addToCart = useCallback((item: Omit<SavedItem, "qty">, qty = 1) => {
+    setCart((prev) => {
+      const existing = prev.find((l) => l.id === item.id);
+      if (existing) {
+        return prev.map((l) => (l.id === item.id ? { ...l, qty: l.qty + qty } : l));
+      }
+      return [...prev, { ...item, qty }];
+    });
+  }, []);
+
+  const setCartQty = useCallback((id: string, qty: number) => {
+    setCart((prev) =>
+      qty <= 0
+        ? prev.filter((l) => l.id !== id)
+        : prev.map((l) => (l.id === id ? { ...l, qty: Math.floor(qty) } : l)),
+    );
+  }, []);
+
+  const removeFromCart = useCallback((id: string) => {
+    setCart((prev) => prev.filter((l) => l.id !== id));
+  }, []);
+
+  const importCart = useCallback((items: SavedItem[]) => {
+    setCart((prev) => {
+      const next = [...prev];
+      for (const item of items) {
+        const i = next.findIndex((l) => l.id === item.id);
+        if (i >= 0) next[i] = { ...next[i], qty: next[i].qty + item.qty };
+        else next.push(item);
+      }
+      return next;
+    });
   }, []);
 
   const clearCart = useCallback(() => setCart([]), []);
@@ -369,20 +455,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const removeFromHaul = useCallback((haulId: string, itemId: string) => {
     setHauls((prev) =>
-      prev.map((h) => (h.id === haulId ? { ...h, items: h.items.filter((i) => i !== itemId) } : h)),
+      prev.map((h) =>
+        h.id === haulId ? { ...h, items: h.items.filter((i) => i.id !== itemId) } : h,
+      ),
     );
   }, []);
 
-  const assignCartToHaul = useCallback((haulId: string) => {
-    setCart((currentCart) => {
+  const assignCartToHaul = useCallback(
+    (haulId: string) => {
+      // Snapshot the cart here — state updaters must stay pure (React
+      // double-invokes them in dev, which would double the quantities).
+      const lines = cart;
       setHauls((prev) =>
-        prev.map((h) =>
-          h.id === haulId ? { ...h, items: [...new Set([...h.items, ...currentCart])] } : h,
-        ),
+        prev.map((h) => {
+          if (h.id !== haulId) return h;
+          const items = [...h.items];
+          for (const line of lines) {
+            const i = items.findIndex((x) => x.id === line.id);
+            if (i >= 0) items[i] = { ...items[i], qty: items[i].qty + line.qty };
+            else items.push(line);
+          }
+          return { ...h, items };
+        }),
       );
-      return [];
-    });
-  }, []);
+      setCart([]);
+    },
+    [cart],
+  );
 
   const addToLibrary = useCallback((id: string) => {
     setLibrary((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -418,8 +517,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const applySnapshot = useCallback((s: Partial<CloudSnapshot>) => {
     if (s.prefs) setPrefsState({ ...DEFAULT_PREFS, ...s.prefs });
     if (Array.isArray(s.wishlist)) setWishlist(s.wishlist);
-    if (Array.isArray(s.cart)) setCart(s.cart);
-    if (Array.isArray(s.hauls) && s.hauls.length > 0) setHauls(s.hauls);
+    if (Array.isArray(s.cart)) setCart(sanitizeItems(s.cart));
+    if (Array.isArray(s.hauls)) {
+      const hauls = sanitizeHauls(s.hauls);
+      if (hauls.length > 0) setHauls(hauls);
+    }
     if (Array.isArray(s.library)) setLibrary(s.library);
     if (Array.isArray(s.favStores)) setFavStores(s.favStores);
     if (Array.isArray(s.userStores)) setUserStores(s.userStores);
@@ -674,10 +776,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       wishlist,
       toggleWishlist,
       cart,
+      cartCount: cart.reduce((sum, l) => sum + l.qty, 0),
       cartOpen,
       setCartOpen,
-      inCart: (id) => cart.includes(id),
-      toggleCart,
+      inCart: (id) => cart.some((l) => l.id === id),
+      addToCart,
+      setCartQty,
+      removeFromCart,
       clearCart,
       hauls,
       activeHaul,
@@ -686,6 +791,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteHaul,
       setHaulBudget,
       removeFromHaul,
+      importCart,
       assignCartToHaul,
       allStores,
       library,
@@ -725,7 +831,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
-      wishlist, toggleWishlist, cart, cartOpen, toggleCart, clearCart,
+      wishlist, toggleWishlist, cart, cartOpen,
+      addToCart, setCartQty, removeFromCart, importCart, clearCart,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
       removeFromHaul, assignCartToHaul, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,

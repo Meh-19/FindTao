@@ -77,7 +77,7 @@ export function SyncBadge() {
 
 export function Topbar() {
   const crumbs = useCrumbs();
-  const { cart, setCartOpen, hydrated } = useStore();
+  const { cartCount, setCartOpen, hydrated } = useStore();
 
   return (
     <div className="sticky top-0 z-30 hidden items-center justify-between border-b border-white/5 bg-ink-950/80 px-8 py-3 backdrop-blur md:flex">
@@ -103,9 +103,9 @@ export function Topbar() {
         >
           <ShoppingCart size={13} aria-hidden="true" />
           Cart
-          {hydrated && cart.length > 0 && (
+          {hydrated && cartCount > 0 && (
             <span className="rounded-full bg-white/25 px-1.5 py-0.5 text-[10px] font-bold">
-              {cart.length}
+              {cartCount}
             </span>
           )}
         </button>
@@ -116,7 +116,7 @@ export function Topbar() {
 
 export function StatusBar() {
   const pathname = usePathname();
-  const { prefs, rates, ratesLive, cart, activeHaul, hydrated } = useStore();
+  const { prefs, rates, ratesLive, cartCount, activeHaul, hydrated } = useStore();
   const seg = pathname.split("/").filter(Boolean)[0] ?? "";
   const rate = rates[prefs.currency];
 
@@ -130,7 +130,7 @@ export function StatusBar() {
               Active haul: <span className="text-mist-300">{activeHaul.name}</span>
               {activeHaul.items.length > 0 && ` (${activeHaul.items.length})`}
             </span>
-            <span>Cart: {cart.length}</span>
+            <span>Cart: {cartCount}</span>
           </>
         )}
         <span title={ratesLive ? "Live rate via open.er-api.com" : "Fallback rate — live fetch unavailable"}>
@@ -154,7 +154,7 @@ const BOTTOM_LINKS = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { cart, setCartOpen, hydrated } = useStore();
+  const { cartCount, setCartOpen, hydrated } = useStore();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch justify-around border-t border-white/10 bg-ink-900/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
@@ -177,9 +177,9 @@ export function BottomNav() {
       >
         <ShoppingCart size={18} aria-hidden="true" />
         Cart
-        {hydrated && cart.length > 0 && (
+        {hydrated && cartCount > 0 && (
           <span className="absolute right-1/4 top-1 rounded-full bg-neon-600 px-1.5 text-[9px] font-bold text-white">
-            {cart.length}
+            {cartCount}
           </span>
         )}
       </button>

@@ -7,6 +7,8 @@ import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
+import { parsePriceCny } from "@/lib/price";
+import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
@@ -103,7 +105,7 @@ function MarketplacePreview({
 export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
-    favStores, toggleFavStore, toast, hydrated, tagDefs,
+    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(id);
@@ -302,40 +304,53 @@ export function StoreView({ id }: { id: string }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {albums.map((album, i) => (
-                <button
-                  key={album.id}
-                  onClick={() => setOpenAlbum(album)}
-                  className="card-pop fade-up overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80 text-left"
-                  style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
-                >
-                  <div
-                    className="tile-shimmer flex aspect-[4/3] items-center justify-center overflow-hidden"
-                    style={
-                      album.cover && yupooHost
-                        ? undefined
-                        : { background: `linear-gradient(135deg, ${album.hue[0]}, ${album.hue[1]})` }
-                    }
+              {albums.map((album, i) => {
+                const price = parsePriceCny(album.name);
+                return (
+                  <button
+                    key={album.id}
+                    onClick={() => setOpenAlbum(album)}
+                    className="card-pop fade-up group overflow-hidden rounded-2xl border border-white/5 bg-ink-800/80 text-left"
+                    style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
                   >
-                    {album.cover && yupooHost ? (
-                      <img
-                        src={proxiedImg(album.cover, yupooHost)}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Images size={22} aria-hidden="true" className="text-white/70" />
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="truncate text-sm font-medium text-mist-100" title={album.name}>
-                      {album.name}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-mist-500">{album.photoCount} photos</p>
-                  </div>
-                </button>
-              ))}
+                    <div
+                      className="tile-shimmer relative flex aspect-square items-center justify-center overflow-hidden"
+                      style={
+                        album.cover && yupooHost
+                          ? undefined
+                          : { background: `linear-gradient(135deg, ${album.hue[0]}, ${album.hue[1]})` }
+                      }
+                    >
+                      {album.cover && yupooHost ? (
+                        <img
+                          src={proxiedImg(album.cover, yupooHost)}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                        />
+                      ) : (
+                        <Images size={22} aria-hidden="true" className="text-white/70" />
+                      )}
+                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white/85 backdrop-blur-sm">
+                        {album.photoCount} photos
+                      </span>
+                    </div>
+                    <div className="p-3">
+                      <p className="line-clamp-2 min-h-9 text-sm font-medium leading-snug text-mist-100" title={album.name}>
+                        {album.name}
+                      </p>
+                      {price !== null ? (
+                        <p className="mt-1.5 text-sm font-semibold tabular-nums text-mist-100">
+                          {formatMoney(price, "CNY")}{" "}
+                          <span className="flow-text text-xs font-bold">≈ {fmtConverted(price)}</span>
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 text-[11px] text-mist-500">Tap for details</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
           {liveMode && hasMore && !albumsLoading && (

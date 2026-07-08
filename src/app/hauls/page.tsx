@@ -1,16 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Pencil, Plus, X } from "lucide-react";
-import { getItem, itemLink, CATEGORY_WEIGHT_G } from "@/data/catalog";
-import { Thumb } from "@/components/Thumb";
+import { ImageOff, Pencil, Plus, X } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { formatMoney } from "@/lib/currency";
-import { toAgentUrl } from "@/lib/links";
+import { parseLink, toAgentUrl } from "@/lib/links";
 import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
+import { proxiedImg } from "@/lib/yupoo";
 import { useStore, type Haul } from "@/lib/store";
+
+/** Rough per-unit parcel weight until real item data exists. */
+const EST_UNIT_WEIGHT_G = 600;
 
 function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
@@ -21,15 +22,21 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const [name, setName] = useState(haul.name);
 
   const agent = getAgent(prefs.agentId) ?? getAgent(DEFAULT_AGENT_ID)!;
-  const items = haul.items.map(getItem).filter((i): i is NonNullable<typeof i> => Boolean(i));
-  const totalCny = items.reduce((sum, i) => sum + i.priceCny, 0);
-  const totalWeight = items.reduce((sum, i) => sum + CATEGORY_WEIGHT_G[i.category], 0);
+  const items = haul.items;
+  const unitCount = items.reduce((sum, i) => sum + i.qty, 0);
+  const totalCny = items.reduce((sum, i) => sum + (i.priceCny ?? 0) * i.qty, 0);
+  const unpricedCount = items.filter((i) => i.priceCny === null).length;
+  const totalWeight = unitCount * EST_UNIT_WEIGHT_G;
   const active = prefs.activeHaulId === haul.id;
   const overBudget = haul.budgetCny !== null && totalCny > haul.budgetCny;
   const budgetPct = haul.budgetCny ? Math.min((totalCny / haul.budgetCny) * 100, 100) : 0;
 
   const exportText = items
-    .map((i) => `${i.title}\n${applyRef(toAgentUrl(itemLink(i), agent), agent.id) ?? itemLink(i).rawUrl}`)
+    .map((i) => {
+      const parsed = i.url ? parseLink(i.url) : null;
+      const link = parsed ? (applyRef(toAgentUrl(parsed, agent), agent.id) ?? i.url) : i.url;
+      return `${i.title}${i.qty > 1 ? ` ×${i.qty}` : ""}${link ? `\n${link}` : ""}`;
+    })
     .join("\n\n");
 
   function saveName() {
@@ -85,11 +92,14 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
 
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-mist-400">
           <span>
-            {items.length} item{items.length === 1 ? "" : "s"} ·{" "}
+            {unitCount} item{unitCount === 1 ? "" : "s"} ·{" "}
             <span className="font-semibold text-mist-100">{formatMoney(totalCny, "CNY")}</span>{" "}
             <span className="flow-text font-bold">≈ {fmtConverted(totalCny)}</span>
+            {unpricedCount > 0 && (
+              <span className="text-mist-500"> +{unpricedCount} unpriced</span>
+            )}
           </span>
-          <span>~{(totalWeight / 1000).toFixed(1)} kg</span>
+          <span>~{(totalWeight / 1000).toFixed(1)} kg est.</span>
           <label className="ml-auto flex items-center gap-1.5">
             Budget ¥
             <input
@@ -123,11 +133,30 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
           <div className="mt-4 space-y-2">
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-3 rounded-xl border border-white/5 bg-ink-900/60 p-2">
-                <Thumb item={item} className="h-10 w-12 shrink-0 rounded-lg" label={false} />
-                <Link href={`/item/${item.id}`} className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100 hover:underline">
+                {item.image && item.imgHost ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={proxiedImg(item.image, item.imgHost)}
+                    alt=""
+                    loading="lazy"
+                    className="h-10 w-12 shrink-0 rounded-lg border border-white/5 object-cover"
+                  />
+                ) : (
+                  <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-ink-700 text-mist-500">
+                    <ImageOff size={13} aria-hidden="true" />
+                  </span>
+                )}
+                <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
                   {item.title}
-                </Link>
-                <span className="text-[11px] text-mist-500">{formatMoney(item.priceCny, "CNY")}</span>
+                </p>
+                {item.qty > 1 && (
+                  <span className="rounded-full bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
+                    ×{item.qty}
+                  </span>
+                )}
+                <span className="text-[11px] tabular-nums text-mist-500">
+                  {item.priceCny !== null ? formatMoney(item.priceCny * item.qty, "CNY") : "—"}
+                </span>
                 <button
                   onClick={() => removeFromHaul(haul.id, item.id)}
                   aria-label="Remove from haul"

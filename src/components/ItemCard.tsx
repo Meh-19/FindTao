@@ -3,16 +3,30 @@
 import Link from "next/link";
 import { Check, Heart, Plus } from "lucide-react";
 import type { CatalogItem } from "@/data/catalog";
-import { itemStore } from "@/data/catalog";
+import { itemStore, itemLink } from "@/data/catalog";
 import { Thumb } from "./Thumb";
-import { useStore } from "@/lib/store";
+import { useStore, type SavedItem } from "@/lib/store";
 
 const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
 
+/** Catalog items become cart lines under the `cat:` id namespace. */
+export function catalogToSaved(item: CatalogItem): Omit<SavedItem, "qty"> {
+  return {
+    id: `cat:${item.id}`,
+    title: item.title,
+    priceCny: item.priceCny,
+    image: null,
+    imgHost: null,
+    storeId: item.storeId,
+    storeName: itemStore(item).name,
+    url: itemLink(item).rawUrl,
+  };
+}
+
 export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: number }) {
-  const { prefs, inCart, toggleCart, wishlist, toggleWishlist, hydrated, fmtCny, toast } = useStore();
+  const { prefs, inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast } = useStore();
   const store = itemStore(item);
-  const carted = hydrated && inCart(item.id);
+  const carted = hydrated && inCart(`cat:${item.id}`);
   const wished = hydrated && wishlist.includes(item.id);
 
   return (
@@ -60,8 +74,11 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
       </button>
       <button
         onClick={() => {
-          toggleCart(item.id);
-          if (!carted) toast("Added to cart");
+          if (carted) removeFromCart(`cat:${item.id}`);
+          else {
+            addToCart(catalogToSaved(item));
+            toast("Added to cart");
+          }
         }}
         aria-label={carted ? "Remove from cart" : "Add to cart"}
         aria-pressed={carted}

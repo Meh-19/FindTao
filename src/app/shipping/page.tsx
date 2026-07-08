@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getItem, CATEGORY_WEIGHT_G } from "@/data/catalog";
 import { formatMoney } from "@/lib/currency";
 import { useStore } from "@/lib/store";
+
+/** Rough per-unit parcel weight until real item data exists. */
+const EST_UNIT_WEIGHT_G = 600;
 
 /** Placeholder rate card — real quotes come from the agent at checkout. */
 const LINES = [
@@ -44,10 +46,7 @@ export default function ShippingPage() {
     if (!id) return;
     const haul = hauls.find((h) => h.id === id);
     if (!haul) return;
-    const weight = haul.items
-      .map(getItem)
-      .filter((i): i is NonNullable<typeof i> => Boolean(i))
-      .reduce((sum, i) => sum + CATEGORY_WEIGHT_G[i.category], 0);
+    const weight = haul.items.reduce((sum, i) => sum + i.qty * EST_UNIT_WEIGHT_G, 0);
     if (weight > 0) setGrams(weight);
   }
 
