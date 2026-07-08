@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Loader2, Ruler, Sparkles } from "lucide-react";
+import { AlertTriangle, Loader2, Maximize2, Ruler, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { proxiedImg } from "@/lib/yupoo";
 import {
   EMPTY_MEASUREMENTS,
   FIT_PREFERENCES,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/sizeAdvisor";
 import { ChartPicker, type ChartSelection } from "./advisor/ChartPicker";
 import { AdvisorResult } from "./advisor/AdvisorResult";
+import { Lightbox } from "./Lightbox";
 
 const inputClass =
   "w-full rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
@@ -248,19 +250,24 @@ type Stage =
 
 function ChartReview({
   chart,
+  selection,
   onConfirm,
   onCancel,
 }: {
   chart: SizeChart;
+  selection: ChartSelection;
   onConfirm: (chart: SizeChart) => void;
   onCancel: () => void;
 }) {
   const [rows, setRows] = useState(chart.rows);
+  const [zoomed, setZoomed] = useState(false);
   const columns = useMemo(() => {
     const keys = new Set<string>();
     for (const r of rows) for (const k of Object.keys(r)) if (k !== "size") keys.add(k);
     return [...keys];
   }, [rows]);
+
+  const imgSrc = proxiedImg(selection.photoUrl, selection.host);
 
   function setCell(i: number, key: string, value: string) {
     setRows((prev) =>
@@ -281,46 +288,75 @@ function ChartReview({
         <Sparkles size={14} aria-hidden="true" className="text-neon-300" /> AI read this chart — check it over
       </p>
       <p className="mt-0.5 text-xs text-mist-500">
-        Vision models occasionally misread a digit. Fix anything that looks off before we compare it to your measurements.
-        Detected type: <span className="text-mist-300">{chart.garmentType}</span>.
+        Vision models occasionally misread a digit. Compare against the original photo and fix anything that looks
+        off before we compare it to your measurements. Detected type: <span className="text-mist-300">{chart.garmentType}</span>.
       </p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="text-mist-500">
-              <th className="py-1.5 pr-3 font-medium">Size</th>
-              {columns.map((c) => (
-                <th key={c} className="py-1.5 pr-3 font-medium">{c.replace("Cm", "")}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} className="border-t border-white/5">
-                <td className="py-1.5 pr-3 font-semibold text-mist-100">{row.size}</td>
+
+      {/* BUG FIX: this step used to show only the AI's extracted numbers with
+          no way to see the actual chart photo, making it impossible to
+          actually check the AI's work. Now the source image sits right next
+          to the editable table, with a click-to-zoom for a closer look. */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
+        <button
+          onClick={() => setZoomed(true)}
+          aria-label="View size chart photo full size"
+          className="group relative block aspect-square w-full max-w-[240px] overflow-hidden border border-white/10 lg:sticky lg:top-4"
+        >
+          <img src={imgSrc} alt="Size chart source photo" className="h-full w-full object-cover" />
+          <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-150 group-hover:bg-black/40 group-hover:opacity-100">
+            <Maximize2 size={20} aria-hidden="true" className="text-white" />
+          </span>
+        </button>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="text-mist-500">
+                <th className="py-1.5 pr-3 font-medium">Size</th>
                 {columns.map((c) => (
-                  <td key={c} className="py-1 pr-3">
-                    <input
-                      type="number"
-                      value={(row as unknown as Record<string, number | undefined>)[c] ?? ""}
-                      onChange={(e) => setCell(i, c, e.target.value)}
-                      className="w-16 rounded-none border border-ink-500 bg-ink-900 px-1.5 py-1 text-xs text-mist-100 outline-none focus:border-neon-500"
-                    />
-                  </td>
+                  <th key={c} className="py-1.5 pr-3 font-medium">{c.replace("Cm", "")}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className="border-t border-white/5">
+                  <td className="py-1.5 pr-3 font-semibold text-mist-100">{row.size}</td>
+                  {columns.map((c) => (
+                    <td key={c} className="py-1 pr-3">
+                      <input
+                        type="number"
+                        value={(row as unknown as Record<string, number | undefined>)[c] ?? ""}
+                        onChange={(e) => setCell(i, c, e.target.value)}
+                        className="w-16 rounded-none border border-ink-500 bg-ink-900 px-1.5 py-1 text-xs text-mist-100 outline-none focus:border-neon-500"
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-4 flex gap-2">
+            <button onClick={() => onConfirm({ ...chart, rows })} className="btn-glow rounded-none px-4 py-2 text-sm font-semibold text-white">
+              Looks good — get my size
+            </button>
+            <button onClick={onCancel} className="border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-red-400/40 hover:text-red-300">
+              Pick a different photo
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="mt-4 flex gap-2">
-        <button onClick={() => onConfirm({ ...chart, rows })} className="btn-glow rounded-none px-4 py-2 text-sm font-semibold text-white">
-          Looks good — get my size
-        </button>
-        <button onClick={onCancel} className="border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-red-400/40 hover:text-red-300">
-          Pick a different photo
-        </button>
-      </div>
+
+      {zoomed && (
+        <Lightbox
+          images={[{ src: imgSrc, rawSrc: selection.photoUrl, alt: "Size chart source photo" }]}
+          index={0}
+          onIndexChange={() => {}}
+          onClose={() => setZoomed(false)}
+          title="Size chart"
+        />
+      )}
     </div>
   );
 }
@@ -414,6 +450,7 @@ export function AiAdvisor() {
       {stage.kind === "review" && (
         <ChartReview
           chart={stage.chart}
+          selection={stage.selection}
           onConfirm={(chart) => handleConfirmChart(chart, stage.selection)}
           onCancel={() => setStage({ kind: "picking" })}
         />
