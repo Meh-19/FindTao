@@ -18,6 +18,8 @@ export interface YupooPhotosResponse {
   photos: string[];
   /** Marketplace item links found in the album description, if any. */
   links?: string[];
+  /** The seller's raw description text — the CNY price is almost always the first line. */
+  description?: string | null;
 }
 
 export function isValidYupooHost(host: string): boolean {

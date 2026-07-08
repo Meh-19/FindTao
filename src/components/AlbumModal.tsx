@@ -37,13 +37,16 @@ export function AlbumModal({
   // null = loading, [] = failed or empty (falls back to placeholder tiles)
   const [photos, setPhotos] = useState<string[] | null>(live ? null : []);
   const [itemLinks, setItemLinks] = useState<string[]>([]);
+  // BUG FIX: the price almost never lives in the album title — sellers write
+  // it as the first line of the album *description* instead (e.g.
+  // "￥270\n\n13oz canvas work pants..."). The API now scrapes that
+  // description; until it lands, fall back to the title so something shows.
+  const [description, setDescription] = useState<string | null>(null);
 
-  // BUG FIX: album titles almost never carry a structured price field, so the
-  // old code only checked the exact title text with strict currency-marker
-  // patterns and silently gave up — showing "Price not listed" on most
-  // albums. parsePriceCnyDetailed also scans for a bare 3-digit fallback
-  // (e.g. "New tee 180") and flags it as an estimate for the label below.
-  const parsedPrice = useMemo(() => parsePriceCnyDetailed(album.name), [album.name]);
+  const parsedPrice = useMemo(
+    () => parsePriceCnyDetailed(description ?? album.name),
+    [description, album.name],
+  );
   const priceCny = parsedPrice?.value ?? null;
 
   useEffect(() => {
@@ -55,6 +58,7 @@ export function AlbumModal({
         if (cancelled) return;
         setPhotos(data.photos ?? []);
         setItemLinks(data.links ?? []);
+        setDescription(data.description ?? null);
       })
       .catch(() => {
         if (!cancelled) setPhotos([]);
