@@ -103,6 +103,7 @@ function AddStore() {
   const [cats, setCats] = useState<StoreCategory[]>(["Clothing"]);
   const [tags, setTags] = useState<string[]>([]);
   const [discover, setDiscover] = useState(true);
+  const [trust, setTrust] = useState(50);
   const [busy, setBusy] = useState(false);
 
   async function add() {
@@ -124,13 +125,14 @@ function AddStore() {
       blurb: blurb.trim(),
       hue1,
       hue2,
+      trust: Math.max(0, Math.min(100, Math.round(trust))),
       discover,
     });
     if (error) {
       toast(error.message, "error");
     } else {
       toast(`${n} added to the directory`);
-      setName(""); setUrl(""); setBlurb(""); setTags([]);
+      setName(""); setUrl(""); setBlurb(""); setTags([]); setTrust(50);
       await refreshDirectory();
     }
     setBusy(false);
@@ -172,10 +174,21 @@ function AddStore() {
           ))}
         </div>
       )}
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-xs text-mist-300">
           <input type="checkbox" checked={discover} onChange={(e) => setDiscover(e.target.checked)} className="accent-white" />
           Show in Discover
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-mist-300">
+          Trust
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={trust}
+            onChange={(e) => setTrust(Number(e.target.value))}
+            className="w-14 rounded-none border border-ink-500 bg-ink-900 px-1.5 py-1 text-center text-xs text-mist-100 outline-none focus:border-neon-500"
+          />
         </label>
         <button onClick={add} disabled={busy} className="btn-glow ml-auto rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
           {busy ? "Adding…" : "Add store"}
@@ -245,6 +258,9 @@ function StoreRow({
 }) {
   const { sb, refreshDirectory, tagDefs, toast } = useStore();
   const storeTags = tagDefs.filter((t) => t.kind === "store");
+  const [trustDraft, setTrustDraft] = useState(String(store.trust));
+
+  useEffect(() => setTrustDraft(String(store.trust)), [store.trust]);
 
   async function update(patch: Record<string, unknown>, msg: string) {
     if (!sb) return;
@@ -254,6 +270,15 @@ function StoreRow({
       toast(msg);
       await refreshDirectory();
     }
+  }
+
+  function commitTrust() {
+    const n = Math.max(0, Math.min(100, Math.round(Number(trustDraft))));
+    if (!Number.isFinite(n) || n === store.trust) {
+      setTrustDraft(String(store.trust));
+      return;
+    }
+    update({ trust: n }, `Trust set to ${n} for ${store.name}`);
   }
 
   async function remove() {
@@ -302,6 +327,20 @@ function StoreRow({
           </a>
         </div>
         <div className="flex items-center gap-1.5 text-[11px]">
+          <label className="flex items-center gap-1 text-mist-500">
+            Trust
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={trustDraft}
+              onChange={(e) => setTrustDraft(e.target.value)}
+              onBlur={commitTrust}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              aria-label={`Trust score for ${store.name}`}
+              className="w-12 rounded-none border border-ink-500 bg-ink-900 px-1 py-1 text-center text-mist-100 outline-none focus:border-neon-500"
+            />
+          </label>
           <button
             onClick={() => update({ discover: !(store.discover ?? true) }, `${store.name} ${store.discover === false ? "shown in" : "hidden from"} Discover`)}
             className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-neon-500/60 hover:text-neon-300"
