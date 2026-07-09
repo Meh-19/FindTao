@@ -1,9 +1,14 @@
 import type { Marketplace, ParsedLink } from "@/lib/links";
 import { canonicalUrl } from "@/lib/links";
-import { getStore } from "./stores";
-import type { StoreInfo } from "./stores";
 
 export type Category = "jacket" | "hoodie" | "tee" | "pants" | "shoes" | "bag" | "accessory";
+
+/** Minimal store info a catalog item needs to render — see itemStore() below for why this isn't a live lookup. */
+export interface ItemStoreInfo {
+  id: string;
+  name: string;
+  trust: number;
+}
 
 export interface CatalogItem {
   id: string;
@@ -13,6 +18,9 @@ export interface CatalogItem {
   priceCny: number;
   category: Category;
   storeId: string;
+  /** Denormalized from the store at add-time — see the schema comment on catalog_items. */
+  storeName: string;
+  storeTrust: number;
   qcCount: number;
   tags: string[];
   /** Placeholder tile gradient [from, to] until real (proxied) images exist. */
@@ -35,23 +43,21 @@ export function itemLink(item: CatalogItem): ParsedLink {
   return { marketplace: item.marketplace, itemId: item.itemId, rawUrl: canonicalUrl(item.marketplace, item.itemId) };
 }
 
-export function itemStore(item: CatalogItem): StoreInfo {
-  const store = getStore(item.storeId);
-  if (!store) throw new Error(`Unknown store: ${item.storeId}`);
-  return store;
-}
-
 /**
- * The catalog fills from the real data pipeline (agent API / affiliate feed).
- * Mock seed items were removed for launch; search and item pages show their
- * empty states until real finds land.
+ * Catalog items store their own denormalized store name/trust rather than
+ * joining against a live store list — the catalog previously joined against
+ * a static STORES array that's intentionally always empty (the real
+ * directory only exists in Supabase), which meant this threw for every
+ * real item. No lookup, no failure mode.
  */
-export const CATALOG: CatalogItem[] = [];
-
-export function getItem(id: string): CatalogItem | undefined {
-  return CATALOG.find((i) => i.id === id);
+export function itemStore(item: CatalogItem): ItemStoreInfo {
+  return { id: item.storeId, name: item.storeName, trust: item.storeTrust };
 }
 
-export function storeItems(storeId: string): CatalogItem[] {
-  return CATALOG.filter((i) => i.storeId === storeId);
+export function getItem(items: CatalogItem[], id: string): CatalogItem | undefined {
+  return items.find((i) => i.id === id);
+}
+
+export function storeItems(items: CatalogItem[], storeId: string): CatalogItem[] {
+  return items.filter((i) => i.storeId === storeId);
 }

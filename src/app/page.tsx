@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ArrowRight, Globe, Link2, Search, ShoppingBasket, Sparkles } from "lucide-react";
-import { CATALOG } from "@/data/catalog";
 import { storeAlbums } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
 import { ItemCard } from "@/components/ItemCard";
@@ -17,8 +16,8 @@ const ACTIONS = [
 ];
 
 export default function HomePage() {
-  const { library, hydrated, directory, allStores } = useStore();
-  const featured = CATALOG.slice(0, 4);
+  const { library, hydrated, directory, allStores, catalogItems } = useStore();
+  const featured = catalogItems.slice(0, 4);
   const communityStores = directory.filter((s) => s.discover !== false && !s.banned).slice(0, 8);
   const savedCount = hydrated ? allStores.filter((s) => library.includes(s.id)).length : 0;
 

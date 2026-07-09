@@ -178,3 +178,44 @@ drop policy if exists "admin inserts reviews" on public.store_reviews;
 create policy "admin inserts reviews" on public.store_reviews for insert with check (public.is_admin());
 drop policy if exists "admin deletes reviews" on public.store_reviews;
 create policy "admin deletes reviews" on public.store_reviews for delete using (public.is_admin());
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Catalog items — the searchable product catalog (Browse, item cards/detail).
+-- Admin-curated from /dev, same pattern as store_directory. store_name/
+-- store_trust/store_hue are denormalized copies of the picked directory
+-- store at add-time (not a live join) — the catalog has no reliable way to
+-- resolve a store at read time otherwise, since the static/legacy STORES
+-- list is intentionally empty and the real directory only exists in this
+-- database. A store's trust score changing later won't retroactively
+-- update items already added; re-add or edit the item to refresh it.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.catalog_items (
+  id text primary key,
+  title text not null,
+  marketplace text not null check (marketplace in ('taobao', 'weidian', '1688', 'xianyu')),
+  item_id text not null,
+  price_cny numeric not null check (price_cny >= 0),
+  category text not null check (category in ('jacket', 'hoodie', 'tee', 'pants', 'shoes', 'bag', 'accessory')),
+  store_id text not null,
+  store_name text not null,
+  store_trust int not null default 50,
+  store_hue1 text not null default '#8b5cf6',
+  store_hue2 text not null default '#22d3ee',
+  qc_count int not null default 0,
+  tags text[] not null default '{}',
+  fit_note text,
+  hue1 text not null default '#8b5cf6',
+  hue2 text not null default '#22d3ee',
+  created_at timestamptz not null default now()
+);
+alter table public.catalog_items enable row level security;
+create index if not exists catalog_items_store_id_idx on public.catalog_items (store_id);
+
+drop policy if exists "anyone reads catalog items" on public.catalog_items;
+create policy "anyone reads catalog items" on public.catalog_items for select using (true);
+drop policy if exists "admin inserts catalog items" on public.catalog_items;
+create policy "admin inserts catalog items" on public.catalog_items for insert with check (public.is_admin());
+drop policy if exists "admin updates catalog items" on public.catalog_items;
+create policy "admin updates catalog items" on public.catalog_items for update using (public.is_admin());
+drop policy if exists "admin deletes catalog items" on public.catalog_items;
+create policy "admin deletes catalog items" on public.catalog_items for delete using (public.is_admin());

@@ -9,11 +9,11 @@ import { detectStorePlatform } from "@/lib/platform";
 import { useStore } from "@/lib/store";
 
 export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: number }) {
-  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated, tagDefs } = useStore();
+  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated, tagDefs, catalogItems } = useStore();
   const storeTagDefs = tagDefs.filter((t) => t.kind === "store" && store.tags?.includes(t.name));
   const saved = hydrated && inLibrary(store.id);
   const fav = hydrated && favStores.includes(store.id);
-  const itemCount = storeItems(store.id).length;
+  const itemCount = storeItems(catalogItems, store.id).length;
   // BUG FIX: store.albums was a hardcoded 0 from the directory row (Supabase
   // doesn't track a live album count), so every card read "0 albums"
   // regardless of what the store actually has. Yupoo stores load their real

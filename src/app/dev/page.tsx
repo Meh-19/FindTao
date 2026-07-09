@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BadgeDollarSign, Globe, MessageSquareText, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
+import { BadgeDollarSign, Globe, MessageSquareText, Package, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
 import { STORE_CATEGORIES, type StoreCategory, type StoreInfo } from "@/data/stores";
+import type { Category, CatalogItem } from "@/data/catalog";
+import { parseLink } from "@/lib/links";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore, type TagDef } from "@/lib/store";
+
+const CATALOG_CATEGORIES: Category[] = ["jacket", "hoodie", "tee", "pants", "shoes", "bag", "accessory"];
 
 const PALETTE: [string, string][] = [
   ["#8b5cf6", "#22d3ee"],
@@ -609,6 +613,158 @@ function ReviewManager() {
   );
 }
 
+function slugForItem(marketplace: string, itemId: string): string {
+  return `${marketplace}-${itemId}`;
+}
+
+function AddCatalogItem() {
+  const { sb, directory, refreshCatalogItems, toast } = useStore();
+  const [link, setLink] = useState("");
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState(0);
+  const [category, setCategory] = useState<Category>("hoodie");
+  const [storeId, setStoreId] = useState("");
+  const [qcCount, setQcCount] = useState(0);
+  const [tags, setTags] = useState("");
+  const [fitNote, setFitNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const parsed = useMemo(() => parseLink(link.trim()), [link]);
+  const store = directory.find((s) => s.id === storeId);
+
+  async function add() {
+    if (!sb || busy) return;
+    if (!parsed) {
+      toast("Paste a valid Taobao/Weidian/1688/Xianyu item link", "error");
+      return;
+    }
+    if (!title.trim() || !store) {
+      toast("Title and store are required", "error");
+      return;
+    }
+    setBusy(true);
+    const { error } = await sb.from("catalog_items").insert({
+      id: slugForItem(parsed.marketplace, parsed.itemId),
+      title: title.trim(),
+      marketplace: parsed.marketplace,
+      item_id: parsed.itemId,
+      price_cny: Math.max(0, price),
+      category,
+      store_id: store.id,
+      store_name: store.name,
+      store_trust: store.trust,
+      store_hue1: store.hue[0],
+      store_hue2: store.hue[1],
+      qc_count: Math.max(0, Math.round(qcCount)),
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      fit_note: fitNote.trim() || null,
+      hue1: store.hue[0],
+      hue2: store.hue[1],
+    });
+    if (error) {
+      toast(error.message, "error");
+    } else {
+      toast(`${title.trim()} added to the catalog`);
+      setLink(""); setTitle(""); setPrice(0); setQcCount(0); setTags(""); setFitNote("");
+      await refreshCatalogItems();
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Section icon={Package} title="Add catalog item" blurb="Paste a marketplace item link — goes straight into Browse/Home/Store pages.">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          placeholder="https://weidian.com/item.html?itemID=…"
+          className={`${inputClass} sm:col-span-2 font-mono text-xs`}
+        />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className={`${inputClass} sm:col-span-2`} />
+        <input
+          type="number"
+          min={0}
+          value={price}
+          onChange={(e) => setPrice(Number(e.target.value))}
+          placeholder="Price (CNY)"
+          className={inputClass}
+        />
+        <select value={category} onChange={(e) => setCategory(e.target.value as Category)} className={inputClass}>
+          {CATALOG_CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className={inputClass}>
+          <option value="">Pick a directory store…</option>
+          {directory.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          min={0}
+          value={qcCount}
+          onChange={(e) => setQcCount(Number(e.target.value))}
+          placeholder="QC photo count"
+          className={inputClass}
+        />
+        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags, comma separated (optional)" className={inputClass} />
+        <input value={fitNote} onChange={(e) => setFitNote(e.target.value)} placeholder="Fit note (optional)" className={inputClass} />
+      </div>
+      {link.trim() && !parsed && (
+        <p className="mt-2 text-xs text-amber-400">That doesn't look like a Taobao/Weidian/1688/Xianyu item link.</p>
+      )}
+      <button onClick={add} disabled={busy} className="btn-glow mt-3 rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {busy ? "Adding…" : "Add item"}
+      </button>
+    </Section>
+  );
+}
+
+function CatalogManager() {
+  const { sb, catalogItems, refreshCatalogItems, toast } = useStore();
+
+  async function remove(item: CatalogItem) {
+    if (!sb) return;
+    const { error } = await sb.from("catalog_items").delete().eq("id", item.id);
+    if (error) toast(error.message, "error");
+    else {
+      toast(`${item.title} removed`, "info");
+      await refreshCatalogItems();
+    }
+  }
+
+  return (
+    <Section icon={Package} title={`Catalog (${catalogItems.length})`} blurb="Items live for everyone immediately.">
+      {catalogItems.length === 0 ? (
+        <p className="rounded-none border border-dashed border-ink-500 px-4 py-8 text-center text-sm text-mist-500">
+          Catalog is empty — add your first item above.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {catalogItems.map((item) => (
+            <div key={item.id} className="flex items-center gap-2.5 rounded-none border border-white/5 bg-ink-900/60 p-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-mist-100">{item.title}</p>
+                <p className="truncate text-[11px] text-mist-500">
+                  {item.storeName} · ¥{item.priceCny} · {item.category} · {item.qcCount} QC
+                </p>
+              </div>
+              <button
+                onClick={() => remove(item)}
+                aria-label={`Remove ${item.title}`}
+                className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-red-400/60 hover:text-red-300"
+              >
+                <Trash2 size={12} aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function TagManager() {
   const { sb, tagDefs, refreshTagDefs, toast } = useStore();
   const [kind, setKind] = useState<"store" | "user">("store");
@@ -814,6 +970,8 @@ export default function DevPage() {
         <AddStore />
         <BulkAdd />
         <StoreManager />
+        <AddCatalogItem />
+        <CatalogManager />
         <ReviewManager />
         <RefCodeManager />
         <TagManager />

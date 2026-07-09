@@ -119,10 +119,10 @@ function MarketplacePreview({
 export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
-    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart,
+    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart, catalogItems,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
-  const items = storeItems(id);
+  const items = storeItems(catalogItems, id);
   const [openAlbum, setOpenAlbum] = useState<Album | null>(null);
 
   const platform = useMemo(

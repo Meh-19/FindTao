@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Heart } from "lucide-react";
-import { CATALOG, itemStore } from "@/data/catalog";
+import { itemStore } from "@/data/catalog";
 import { ItemCard } from "@/components/ItemCard";
 import { parseLink } from "@/lib/links";
 import type { Marketplace } from "@/lib/links";
@@ -33,7 +33,7 @@ const chipClass =
 function SearchView() {
   const router = useRouter();
   const params = useSearchParams();
-  const { prefs, wishlist, importCart, setCartOpen, toast, hydrated } = useStore();
+  const { prefs, wishlist, importCart, setCartOpen, toast, hydrated, catalogItems } = useStore();
   const [query, setQuery] = useState("");
   const [marketplace, setMarketplace] = useState<Marketplace | "all">("all");
   const [qcOnly, setQcOnly] = useState(false);
@@ -63,7 +63,7 @@ function SearchView() {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return CATALOG.filter((item) => {
+    return catalogItems.filter((item) => {
       const store = itemStore(item);
       if (marketplace !== "all" && item.marketplace !== marketplace) return false;
       if (qcOnly && item.qcCount === 0) return false;
@@ -74,7 +74,7 @@ function SearchView() {
       const haystack = `${item.title} ${item.tags.join(" ")} ${store.name}`.toLowerCase();
       return q.split(/\s+/).every((word) => haystack.includes(word));
     });
-  }, [query, marketplace, qcOnly, trustedOnly, wishOnly, maxPrice, wishlist]);
+  }, [query, marketplace, qcOnly, trustedOnly, wishOnly, maxPrice, wishlist, catalogItems]);
 
   return (
     <div>

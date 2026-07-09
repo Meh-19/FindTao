@@ -82,14 +82,25 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
   );
 }
 
-export function ItemDetail({ item }: { item: CatalogItem }) {
-  const { inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast } = useStore();
+export function ItemDetail({ id }: { id: string }) {
+  const { inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, catalogItems } = useStore();
+  const item = catalogItems.find((i) => i.id === id);
+  const [qcOpen, setQcOpen] = useState<number | null>(null);
+
+  if (!hydrated) return null;
+  if (!item) {
+    return (
+      <div className="fade-up rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
+        Item not found. <Link href="/browse" className="text-neon-300 underline">Back to Search</Link>
+      </div>
+    );
+  }
+
   const link = itemLink(item);
   const store = itemStore(item);
   const carted = hydrated && inCart(`cat:${item.id}`);
   const wished = hydrated && wishlist.includes(item.id);
   const trusted = store.trust >= 85;
-  const [qcOpen, setQcOpen] = useState<number | null>(null);
 
   return (
     <div className="fade-up">

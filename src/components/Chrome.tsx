@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { Home, Search, Settings, ShoppingBasket, ShoppingCart } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { getItem } from "@/data/catalog";
-import { getStore } from "@/data/stores";
 
 const VIEW_LABEL: Record<string, string> = {
   "": "Home",
@@ -25,6 +24,7 @@ const VIEW_LABEL: Record<string, string> = {
 
 function useCrumbs(): { label: string; href?: string }[] {
   const pathname = usePathname();
+  const { catalogItems, allStores } = useStore();
   const [seg1, seg2] = pathname.split("/").filter(Boolean);
   const crumbs: { label: string; href?: string }[] = [{ label: "Home", href: "/" }];
   if (!seg1) return crumbs;
@@ -34,7 +34,11 @@ function useCrumbs(): { label: string; href?: string }[] {
   });
   if (seg2) {
     const name =
-      seg1 === "item" ? getItem(seg2)?.title : seg1 === "store" ? getStore(seg2)?.name : seg2;
+      seg1 === "item"
+        ? getItem(catalogItems, seg2)?.title
+        : seg1 === "store"
+          ? allStores.find((s) => s.id === seg2)?.name
+          : seg2;
     crumbs.push({ label: name ?? seg2 });
   }
   return crumbs;

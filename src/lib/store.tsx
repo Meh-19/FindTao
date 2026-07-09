@@ -10,6 +10,7 @@ import { withRef } from "./links";
 import { resolveSupabase } from "./supabase";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
+import type { CatalogItem, Category } from "@/data/catalog";
 import { EMPTY_MEASUREMENTS, type Measurements } from "./measurements";
 
 /** Always treated as admin, before any profile tags load. */
@@ -50,6 +51,41 @@ function rowToStore(row: DirectoryRow): StoreInfo {
     tags: row.tags,
     discover: row.discover,
     banned: row.banned,
+  };
+}
+
+interface CatalogItemRow {
+  id: string;
+  title: string;
+  marketplace: string;
+  item_id: string;
+  price_cny: number;
+  category: string;
+  store_id: string;
+  store_name: string;
+  store_trust: number;
+  qc_count: number;
+  tags: string[];
+  fit_note: string | null;
+  hue1: string;
+  hue2: string;
+}
+
+function rowToCatalogItem(row: CatalogItemRow): CatalogItem {
+  return {
+    id: row.id,
+    title: row.title,
+    marketplace: row.marketplace as CatalogItem["marketplace"],
+    itemId: row.item_id,
+    priceCny: row.price_cny,
+    category: row.category as Category,
+    storeId: row.store_id,
+    storeName: row.store_name,
+    storeTrust: row.store_trust,
+    qcCount: row.qc_count,
+    tags: row.tags,
+    hue: [row.hue1, row.hue2],
+    fitNote: row.fit_note ?? undefined,
   };
 }
 
@@ -316,6 +352,9 @@ interface Store {
   /** Community directory from Supabase (admins also see banned rows). */
   directory: StoreInfo[];
   refreshDirectory: () => Promise<void>;
+  /** Admin-curated product catalog from Supabase — powers Browse, item cards/detail. */
+  catalogItems: CatalogItem[];
+  refreshCatalogItems: () => Promise<void>;
   tagDefs: TagDef[];
   refreshTagDefs: () => Promise<void>;
   /** Role-style tags on the signed-in user's profile. */
@@ -346,6 +385,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [sb, setSb] = useState<SupabaseClient | null>(null);
   const [directory, setDirectory] = useState<StoreInfo[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [tagDefs, setTagDefs] = useState<TagDef[]>([]);
   const [profileTags, setProfileTags] = useState<string[]>([]);
   const [profileName, setProfileName] = useState<string | null>(null);
@@ -609,6 +649,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!error && data) setDirectory((data as DirectoryRow[]).map(rowToStore));
   }, [sb]);
 
+  const refreshCatalogItems = useCallback(async () => {
+    if (!sb) return;
+    const { data, error } = await sb
+      .from("catalog_items")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) setCatalogItems((data as CatalogItemRow[]).map(rowToCatalogItem));
+  }, [sb]);
+
   const refreshTagDefs = useCallback(async () => {
     if (!sb) return;
     const { data, error } = await sb.from("tag_defs").select("*").order("id");
@@ -629,7 +678,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshDirectory();
     refreshTagDefs();
     refreshAgentRefs();
-  }, [refreshDirectory, refreshTagDefs, refreshAgentRefs]);
+    refreshCatalogItems();
+  }, [refreshDirectory, refreshTagDefs, refreshAgentRefs, refreshCatalogItems]);
 
   // Role tags + display name from the signed-in user's profile.
   //
@@ -930,6 +980,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       applyRef,
       directory,
       refreshDirectory,
+      catalogItems,
+      refreshCatalogItems,
       tagDefs,
       refreshTagDefs,
       profileTags,
@@ -946,7 +998,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sb, user, profileName, syncStatus, lastSyncAt, authOpen,
       signInWithEmail, signInWithPassword, signUp, updatePassword, signOut, syncNow,
       agentRefs, refreshAgentRefs, applyRef,
-      directory, refreshDirectory, tagDefs, refreshTagDefs, profileTags, isAdmin,
+      directory, refreshDirectory, catalogItems, refreshCatalogItems, tagDefs, refreshTagDefs, profileTags, isAdmin,
     ],
   );
 
