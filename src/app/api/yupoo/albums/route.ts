@@ -1,4 +1,5 @@
 import { isValidYupooHost, type YupooAlbum } from "@/lib/yupoo";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,9 @@ const UA =
 
 /** Yupoo's gallery tab paginates at 120 albums per page. */
 const PAGE_SIZE = 120;
+
+const LIMIT = 60;
+const WINDOW_MS = 60_000;
 
 function decodeEntities(s: string): string {
   return s
@@ -53,6 +57,9 @@ function parseAlbums(html: string): YupooAlbum[] {
 }
 
 export async function GET(request: Request) {
+  const rl = rateLimit(`yupoo-albums:${clientKey(request)}`, LIMIT, WINDOW_MS);
+  if (!rl.ok) return rateLimitResponse(rl, "Too many requests — try again shortly.");
+
   const params = new URL(request.url).searchParams;
   const host = params.get("host") ?? "";
   const page = Math.max(1, Number(params.get("page") ?? 1) || 1);

@@ -1,5 +1,6 @@
 import { isValidYupooHost } from "@/lib/yupoo";
 import type { ChartRow, GarmentType } from "@/lib/sizeAdvisor";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,19 @@ function sanitizeChart(data: unknown): ParsedChart | null {
   return { garmentType: isGarmentType(d.garmentType) ? d.garmentType : "unknown", rows };
 }
 
+// Each request costs real money (one paid Anthropic vision call) and this
+// route has no auth gate, so it's rate-limited per caller IP well below
+// anything a real shopper would hit — 10 chart scans per 15 minutes is
+// generous for someone actually shopping, but shuts down scripted abuse.
+const LIMIT = 10;
+const WINDOW_MS = 15 * 60_000;
+
 export async function POST(request: Request) {
+  const rl = rateLimit(`advisor:${clientKey(request)}`, LIMIT, WINDOW_MS);
+  if (!rl.ok) {
+    return rateLimitResponse(rl, "Too many size-chart scans from this connection — try again in a few minutes.");
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return Response.json(

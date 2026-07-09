@@ -1,9 +1,16 @@
 import { isValidYupooHost } from "@/lib/yupoo";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+// The store-page price prefetch fires one of these per visible album (light
+// mode), which can legitimately be a few dozen in one page load — generous
+// ceiling, just there to stop scripted scraping.
+const LIMIT = 150;
+const WINDOW_MS = 60_000;
 
 function decodeEntities(s: string): string {
   return s
@@ -52,6 +59,9 @@ function extractDescription(html: string): string | null {
  * display and the buy-via-agent button in the album viewer.
  */
 export async function GET(request: Request) {
+  const rl = rateLimit(`yupoo-album:${clientKey(request)}`, LIMIT, WINDOW_MS);
+  if (!rl.ok) return rateLimitResponse(rl, "Too many requests — try again shortly.");
+
   const params = new URL(request.url).searchParams;
   const host = params.get("host") ?? "";
   const id = params.get("id") ?? "";

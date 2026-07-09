@@ -1,7 +1,12 @@
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+
 export const dynamic = "force-dynamic";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+const LIMIT = 30;
+const WINDOW_MS = 60_000;
 
 /**
  * Live Weidian shop preview: name and logo scraped from the shop page shell
@@ -9,6 +14,9 @@ const UA =
  * logo <meta> are server-rendered — verified against live shops).
  */
 export async function GET(request: Request) {
+  const rl = rateLimit(`weidian-shop:${clientKey(request)}`, LIMIT, WINDOW_MS);
+  if (!rl.ok) return rateLimitResponse(rl, "Too many requests — try again shortly.");
+
   const userid = new URL(request.url).searchParams.get("userid") ?? "";
   if (!/^\d{1,20}$/.test(userid)) {
     return Response.json({ error: "invalid userid" }, { status: 400 });
