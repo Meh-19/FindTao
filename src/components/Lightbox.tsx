@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useModalA11y } from "@/lib/useModalA11y";
 
 export interface LightboxImage {
   /** Proxied/display src actually rendered in the <img>. */
@@ -52,6 +53,8 @@ export function Lightbox({
     return () => document.removeEventListener("keydown", onKey);
   }, [index, total, onIndexChange, onClose]);
 
+  const containerRef = useModalA11y<HTMLDivElement>(Boolean(current));
+
   if (!current) return null;
 
   return (
@@ -63,7 +66,9 @@ export function Lightbox({
       onClick={onClose}
     >
       <div
-        className="fade-up flex w-full max-w-3xl flex-col items-center"
+        ref={containerRef}
+        tabIndex={-1}
+        className="fade-up flex w-full max-w-3xl flex-col items-center outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex w-full items-center justify-between pb-3">

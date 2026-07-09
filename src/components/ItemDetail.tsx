@@ -10,6 +10,7 @@ import { AgentActions } from "./AgentActions";
 import { CopyButton } from "./CopyButton";
 import { catalogToSaved } from "./ItemCard";
 import { useStore } from "@/lib/store";
+import { useModalA11y } from "@/lib/useModalA11y";
 
 const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
 
@@ -27,13 +28,22 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, total]);
 
+  // BUG FIX: this modal had no role/aria-modal, no scroll lock, and no
+  // focus trap — unlike every other modal in the app.
+  const containerRef = useModalA11y<HTMLDivElement>(true);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`QC photo ${idx + 1} of ${total}`}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="fade-up w-full max-w-lg overflow-hidden rounded-none border border-white/10 bg-ink-900"
+        ref={containerRef}
+        tabIndex={-1}
+        className="fade-up w-full max-w-lg overflow-hidden rounded-none border border-white/10 bg-ink-900 outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3">

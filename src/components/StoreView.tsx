@@ -291,17 +291,22 @@ export function StoreView({ id }: { id: string }) {
             </a>
           </div>
         </div>
+        {/* BUG FIX: this button used to sit inline with the avatar + text
+            column, which had nowhere to shrink to on narrow screens — the
+            name/blurb column got crushed down to ~100px instead of the
+            button wrapping to its own line. Forcing full width below `sm`
+            makes flex-wrap actually drop it to a new row on mobile. */}
         {saved ? (
           <button
             onClick={() => { removeFromLibrary(store.id); toast(`${store.name} removed from library`, "info"); }}
-            className="flex items-center gap-1.5 rounded-none border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300"
+            className="flex w-full items-center justify-center gap-1.5 rounded-none border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300 sm:w-auto"
           >
             <Check size={14} aria-hidden="true" /> In library
           </button>
         ) : (
           <button
             onClick={() => { addToLibrary(store.id); toast(`${store.name} added to library`); }}
-            className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
+            className="btn-glow flex w-full items-center justify-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white sm:w-auto"
           >
             <Plus size={14} aria-hidden="true" /> Add to library
           </button>

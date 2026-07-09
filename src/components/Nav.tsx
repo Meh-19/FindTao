@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useModalA11y } from "@/lib/useModalA11y";
 import { SyncBadge } from "./Chrome";
 
 const LINKS = [
@@ -209,6 +210,10 @@ export function Nav() {
     return () => document.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
 
+  // BUG FIX: the mobile drawer had no scroll lock or focus trap, unlike
+  // every other overlay in the app.
+  const drawerRef = useModalA11y<HTMLElement>(drawerOpen);
+
   return (
     <>
       {/* Mobile top bar — hamburger opens the full drawer */}
@@ -236,7 +241,12 @@ export function Nav() {
         }`}
       />
       <aside
-        className={`cart-panel fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/10 bg-ink-900 md:hidden ${
+        ref={drawerRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        className={`cart-panel fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/10 bg-ink-900 outline-none md:hidden ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!drawerOpen}

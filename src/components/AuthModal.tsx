@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff, X } from "lucide-react";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore } from "@/lib/store";
+import { useModalA11y } from "@/lib/useModalA11y";
 
 const inputClass =
   "w-full rounded-none border border-ink-500 bg-ink-900 px-3.5 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500";
@@ -70,6 +71,8 @@ export function AuthModal() {
     return () => document.removeEventListener("keydown", onKey);
   }, [authOpen, setAuthOpen]);
 
+  const containerRef = useModalA11y<HTMLDivElement>(authOpen && cloudEnabled);
+
   if (!authOpen || !cloudEnabled) return null;
 
   async function submit() {
@@ -111,7 +114,9 @@ export function AuthModal() {
       onClick={() => setAuthOpen(false)}
     >
       <div
-        className="fade-up w-full max-w-sm overflow-hidden rounded-none border border-white/10 bg-ink-900"
+        ref={containerRef}
+        tabIndex={-1}
+        className="fade-up w-full max-w-sm overflow-hidden rounded-none border border-white/10 bg-ink-900 outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flow-bg h-0.5" />

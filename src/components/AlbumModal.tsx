@@ -9,6 +9,7 @@ import { parseLink } from "@/lib/links";
 import { parsePriceCnyDetailed } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
 import { useStore } from "@/lib/store";
+import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
 import { Lightbox } from "./Lightbox";
@@ -92,14 +93,10 @@ export function AlbumModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [viewer, onClose]);
 
-  // Lock page scroll while the modal is open.
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
+  // Scroll lock + focus trap/restore — deactivated while the nested photo
+  // Lightbox is open so the two modals' Tab traps don't fight each other
+  // (Lightbox takes over both while it's on top).
+  const containerRef = useModalA11y<HTMLDivElement>(viewer === null);
 
   function tileStyle() {
     // Flat monochrome placeholder tile — no gradient, matches the hatch texture from .tile-shimmer.
@@ -121,7 +118,9 @@ export function AlbumModal({
       onClick={onClose}
     >
       <div
-        className="fade-up flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-none border border-white/10 bg-ink-900"
+        ref={containerRef}
+        tabIndex={-1}
+        className="fade-up flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-none border border-white/10 bg-ink-900 outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flow-bg h-0.5 shrink-0" />

@@ -6,6 +6,7 @@ import { ImageOff, Link2, Minus, Plus, X } from "lucide-react";
 import { encodeCart } from "@/lib/share";
 import { proxiedImg } from "@/lib/yupoo";
 import { useStore, type SavedItem } from "@/lib/store";
+import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 
 function LineThumb({ item }: { item: SavedItem }) {
@@ -48,6 +49,11 @@ export function CartPanel() {
   const totalCny = priced.reduce((sum, l) => sum + (l.priceCny ?? 0) * l.qty, 0);
   const unpricedCount = cart.length - priced.length;
 
+  // BUG FIX: the cart drawer blocks interaction with the rest of the page
+  // via its backdrop but never locked scroll or trapped focus like every
+  // other modal-ish overlay in the app.
+  const containerRef = useModalA11y<HTMLElement>(cartOpen);
+
   if (!hydrated) return null;
 
   function storeHref(line: SavedItem): string | null {
@@ -79,7 +85,12 @@ export function CartPanel() {
         }`}
       />
       <aside
-        className={`cart-panel fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-white/10 bg-ink-900 ${
+        ref={containerRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cart"
+        className={`cart-panel fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-white/10 bg-ink-900 outline-none ${
           cartOpen ? "translate-x-0" : "translate-x-full"
         }`}
         aria-hidden={!cartOpen}
