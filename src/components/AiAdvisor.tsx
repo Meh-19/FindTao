@@ -12,6 +12,7 @@ import {
   inToCm,
   kgToLb,
   lbToKg,
+  resolveFootLength,
   resolveMeasurements,
   type FitPreference,
   type Measurements,
@@ -248,6 +249,17 @@ type Stage =
   | { kind: "review"; selection: ChartSelection; chart: SizeChart }
   | { kind: "done"; selection: ChartSelection; chart: SizeChart };
 
+const COLUMN_LABEL: Record<string, string> = {
+  footLengthCm: "Foot length",
+  shoeSizeUs: "US",
+  shoeSizeEu: "EU",
+  shoeSizeUk: "UK",
+};
+
+function columnLabel(key: string): string {
+  return COLUMN_LABEL[key] ?? key.replace("Cm", "");
+}
+
 function ChartReview({
   chart,
   selection,
@@ -314,7 +326,7 @@ function ChartReview({
               <tr className="text-mist-500">
                 <th className="py-1.5 pr-3 font-medium">Size</th>
                 {columns.map((c) => (
-                  <th key={c} className="py-1.5 pr-3 font-medium">{c.replace("Cm", "")}</th>
+                  <th key={c} className="py-1.5 pr-3 font-medium">{columnLabel(c)}</th>
                 ))}
               </tr>
             </thead>
@@ -368,7 +380,10 @@ export function AiAdvisor() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [reviewSignal, setReviewSignal] = useState<ReviewSignal | null>(null);
 
-  const resolved = useMemo(() => resolveMeasurements(measurements), [measurements]);
+  const resolved = useMemo(
+    () => ({ ...resolveMeasurements(measurements), footLengthCm: resolveFootLength(measurements) }),
+    [measurements],
+  );
 
   async function handlePick(selection: ChartSelection) {
     setAnalyzeError(null);

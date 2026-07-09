@@ -1,7 +1,7 @@
 import type { FitPreference } from "./measurements";
 import { type EstimatedField, type ResolvedField } from "./measurements";
 
-export type GarmentType = "top" | "bottom" | "outerwear" | "unknown";
+export type GarmentType = "top" | "bottom" | "outerwear" | "footwear" | "unknown";
 
 /** One row of a size chart, normalized to cm by the chart-reading step. */
 export interface ChartRow {
@@ -16,6 +16,11 @@ export interface ChartRow {
   inseamCm?: number;
   thighCm?: number;
   riseCm?: number;
+  footLengthCm?: number;
+  /** Not scored directly (ordinal, not linear) — shown for reference/editing only; footLengthCm drives the actual comparison. */
+  shoeSizeUs?: number;
+  shoeSizeEu?: number;
+  shoeSizeUk?: number;
 }
 
 export interface SizeChart {
@@ -23,11 +28,11 @@ export interface SizeChart {
   rows: ChartRow[];
 }
 
-type Dimension = EstimatedField;
+type Dimension = EstimatedField | "footLengthCm";
 
 const DIMENSIONS: Dimension[] = [
   "chestCm", "shoulderWidthCm", "sleeveLengthCm", "bodyLengthCm", "neckCm",
-  "waistCm", "hipsCm", "inseamCm", "thighCm", "riseCm",
+  "waistCm", "hipsCm", "inseamCm", "thighCm", "riseCm", "footLengthCm",
 ];
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -41,42 +46,61 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
   inseamCm: "Inseam",
   thighCm: "Thigh",
   riseCm: "Rise",
+  footLengthCm: "Foot length",
 };
+
+/**
+ * Circumference-style dimensions — the ones vulnerable to the "measured flat"
+ * convention many (especially Chinese-market) charts use: the garment is
+ * measured laid flat, straight across, which reads as roughly HALF the
+ * actual circumference. Length-style dimensions (sleeve, body length,
+ * shoulder width, inseam, rise, foot length) don't have this ambiguity.
+ */
+const CIRCUMFERENCE_DIMENSIONS = new Set<Dimension>(["chestCm", "waistCm", "hipsCm", "neckCm", "thighCm"]);
 
 /** Which chart dimensions matter for which garment type, and how much. */
 const WEIGHTS: Record<GarmentType, Partial<Record<Dimension, number>>> = {
   top: { chestCm: 3, shoulderWidthCm: 2, sleeveLengthCm: 1.5, bodyLengthCm: 1, neckCm: 1 },
   outerwear: { chestCm: 3, shoulderWidthCm: 2.5, sleeveLengthCm: 1.5, bodyLengthCm: 1.5, neckCm: 0.5 },
   bottom: { waistCm: 3, hipsCm: 2, inseamCm: 1.5, thighCm: 1.5, riseCm: 1 },
+  footwear: { footLengthCm: 3 },
   unknown: {
     chestCm: 2, waistCm: 2, hipsCm: 1.5, shoulderWidthCm: 1, sleeveLengthCm: 1,
-    bodyLengthCm: 1, neckCm: 0.5, inseamCm: 1, thighCm: 1, riseCm: 0.5,
+    bodyLengthCm: 1, neckCm: 0.5, inseamCm: 1, thighCm: 1, riseCm: 0.5, footLengthCm: 1,
   },
 };
 
 /**
- * Target "ease" range in cm (garment measurement minus body measurement) per
- * dimension per fit preference — e.g. a "regular" fit chest wants the chart
- * to read 6-12cm bigger than the body's actual chest. These are approximate
- * streetwear-fit guidelines, not a universal standard; they're here to give
- * the scorer *some* notion of what each fit preference means per dimension.
+ * Target "ease" range in cm (garment/shoe measurement minus body measurement)
+ * per dimension per fit preference — e.g. a "regular" fit chest wants the
+ * chart to read 6-12cm bigger than the body's actual chest. Footwear ease
+ * is a totally different scale (fractions of a cm of toe room, not tens of
+ * cm of garment room) but reuses the same fit-preference axis: "slim" reads
+ * as a snugger true-to-size fit, "oversized" as extra room. These are
+ * approximate streetwear-fit guidelines, not a universal standard; they're
+ * here to give the scorer *some* notion of what each fit preference means
+ * per dimension.
  */
 const EASE_TARGETS_CM: Record<FitPreference, Partial<Record<Dimension, [number, number]>>> = {
   slim: {
     chestCm: [2, 6], waistCm: [2, 6], hipsCm: [2, 6], neckCm: [0.5, 2], thighCm: [1, 4],
     shoulderWidthCm: [-1, 1], sleeveLengthCm: [-1, 1], bodyLengthCm: [0, 4], inseamCm: [-1, 1], riseCm: [-1, 1],
+    footLengthCm: [0.3, 0.8],
   },
   regular: {
     chestCm: [6, 12], waistCm: [6, 12], hipsCm: [6, 12], neckCm: [1.5, 3], thighCm: [3, 7],
     shoulderWidthCm: [0, 2], sleeveLengthCm: [0, 2], bodyLengthCm: [3, 8], inseamCm: [0, 2], riseCm: [0, 2],
+    footLengthCm: [0.8, 1.3],
   },
   relaxed: {
     chestCm: [12, 20], waistCm: [12, 20], hipsCm: [10, 18], neckCm: [2.5, 4.5], thighCm: [6, 11],
     shoulderWidthCm: [1.5, 4], sleeveLengthCm: [1, 3], bodyLengthCm: [6, 12], inseamCm: [1, 3], riseCm: [1, 3],
+    footLengthCm: [1.3, 1.8],
   },
   oversized: {
     chestCm: [20, 32], waistCm: [18, 28], hipsCm: [16, 26], neckCm: [4, 7], thighCm: [9, 16],
     shoulderWidthCm: [3, 7], sleeveLengthCm: [2, 5], bodyLengthCm: [10, 18], inseamCm: [2, 5], riseCm: [2, 5],
+    footLengthCm: [1.8, 2.5],
   },
 };
 
@@ -86,9 +110,37 @@ export interface DimensionBreakdown {
   bodyCm: number;
   bodyMeasured: boolean;
   chartCm: number;
+  /** True when chartCm was doubled from what the chart actually said — see correctFlatMeasurement below. */
+  flatCorrected: boolean;
+  /** The as-read chart value before any flat-measurement correction. */
+  rawChartCm: number;
   easeCm: number;
   /** How far outside the ideal ease range this row falls, in cm (0 = right in the target range). */
   distanceCm: number;
+}
+
+/**
+ * BUG FIX: many size charts (especially from Chinese sellers) measure
+ * circumference dimensions — chest, waist, hips, neck, thigh — with the
+ * garment laid FLAT, which reads as roughly half the actual circumference.
+ * The vision prompt is told to normalize this itself, but it won't always
+ * catch it (chart context isn't always explicit), so this is a second,
+ * algorithmic pass: if using the raw chart value produces an implausibly
+ * negative ease (garment reading dramatically smaller than the body), check
+ * whether doubling it lands in a sane range instead — if so, it almost
+ * certainly was a flat measurement, so use the doubled value.
+ */
+function correctFlatMeasurement(
+  dim: Dimension,
+  chartVal: number,
+  bodyVal: number,
+): { value: number; corrected: boolean } {
+  if (!CIRCUMFERENCE_DIMENSIONS.has(dim)) return { value: chartVal, corrected: false };
+  const ease = chartVal - bodyVal;
+  if (ease >= -20) return { value: chartVal, corrected: false };
+  const doubledEase = chartVal * 2 - bodyVal;
+  if (doubledEase >= -12 && doubledEase <= 40) return { value: chartVal * 2, corrected: true };
+  return { value: chartVal, corrected: false };
 }
 
 export interface SizeScore {
@@ -120,12 +172,13 @@ export function scoreChart(
     let weightSum = 0;
 
     for (const dim of DIMENSIONS) {
-      const chartVal = row[dim];
+      const rawChartVal = row[dim];
       const body = resolved[dim];
       const weight = weights[dim];
       const target = targets[dim];
-      if (chartVal == null || body == null || !weight || !target) continue;
+      if (rawChartVal == null || body == null || !weight || !target) continue;
 
+      const { value: chartVal, corrected } = correctFlatMeasurement(dim, rawChartVal, body.value);
       const easeCm = chartVal - body.value;
       const [lo, hi] = target;
       const distanceCm = easeCm < lo ? lo - easeCm : easeCm > hi ? easeCm - hi : 0;
@@ -136,6 +189,8 @@ export function scoreChart(
         bodyCm: body.value,
         bodyMeasured: body.measured,
         chartCm: chartVal,
+        flatCorrected: corrected,
+        rawChartCm: rawChartVal,
         easeCm,
         distanceCm,
       });
@@ -238,6 +293,16 @@ export function recommendSize(
     `Best match on ${best.matchedDimensions} dimension${best.matchedDimensions === 1 ? "" : "s"}: ` +
       best.breakdown.map((b) => `${b.label} ${b.easeCm >= 0 ? "+" : ""}${b.easeCm.toFixed(1)}cm ease`).join(", "),
   ];
+
+  const flatCorrected = best.breakdown.filter((b) => b.flatCorrected);
+  if (flatCorrected.length > 0) {
+    reasoning.push(
+      `${flatCorrected.map((b) => b.label).join(", ")} looked like a flat (laid-flat) garment measurement — ` +
+        `doubled to the actual circumference before comparing (chart said ${flatCorrected
+          .map((b) => `${b.rawChartCm.toFixed(1)}cm`)
+          .join(", ")}).`,
+    );
+  }
 
   let adjustedFor: ReviewBias | null = null;
   if (reviewSignal?.bias === "runs-small" || reviewSignal?.bias === "runs-large") {

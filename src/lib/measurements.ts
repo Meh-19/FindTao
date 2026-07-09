@@ -147,3 +147,38 @@ export function resolveMeasurements(m: Measurements): Record<EstimatedField, Res
   }
   return out;
 }
+
+/**
+ * Rough (unisex, ballpark) shoe-size → foot-length conversions in cm. Real
+ * lasts vary a lot by brand/region/gender, so these are only used when the
+ * shopper hasn't entered a foot length directly — always flagged as
+ * estimated, never treated as exact. US/UK are linear fits through common
+ * published size charts; EU (Paris point) is ~2/3cm per point by definition.
+ */
+export function usSizeToFootCm(us: number): number {
+  return us * 0.847 + 18.0;
+}
+
+export function ukSizeToFootCm(uk: number): number {
+  return uk * 0.847 + 18.9;
+}
+
+export function euSizeToFootCm(eu: number): number {
+  return eu * 0.667;
+}
+
+/**
+ * Foot length for the footwear scorer — prefers a directly measured length,
+ * then falls back to whichever shoe size the shopper entered (US, then EU,
+ * then UK), converted via the approximations above. Unlike
+ * resolveMeasurements, this has no BMI-based fallback: foot length doesn't
+ * correlate with height/weight closely enough to guess responsibly, so it's
+ * simply unavailable (null) until the shopper enters *something* footwear-related.
+ */
+export function resolveFootLength(m: Measurements): ResolvedField | null {
+  if (m.footLengthCm != null) return { value: m.footLengthCm, measured: true };
+  if (m.shoeSizeUs != null) return { value: usSizeToFootCm(m.shoeSizeUs), measured: false };
+  if (m.shoeSizeEu != null) return { value: euSizeToFootCm(m.shoeSizeEu), measured: false };
+  if (m.shoeSizeUk != null) return { value: ukSizeToFootCm(m.shoeSizeUk), measured: false };
+  return null;
+}

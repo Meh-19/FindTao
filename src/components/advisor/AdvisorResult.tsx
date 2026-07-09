@@ -71,7 +71,17 @@ export function AdvisorResult({
                       <span className="ml-1 font-mono text-[9px] uppercase text-mist-500">est.</span>
                     )}
                   </td>
-                  <td className="py-1.5 pr-3 tabular-nums text-mist-100">{b.chartCm.toFixed(1)}cm</td>
+                  <td className="py-1.5 pr-3 tabular-nums text-mist-100">
+                    {b.chartCm.toFixed(1)}cm
+                    {b.flatCorrected && (
+                      <span
+                        className="ml-1 font-mono text-[9px] uppercase text-amber-400"
+                        title={`Chart said ${b.rawChartCm.toFixed(1)}cm — doubled, looked like a flat (laid-flat) garment measurement`}
+                      >
+                        2x
+                      </span>
+                    )}
+                  </td>
                   <td className="py-1.5 tabular-nums text-mist-300">
                     {b.easeCm >= 0 ? "+" : ""}
                     {b.easeCm.toFixed(1)}cm

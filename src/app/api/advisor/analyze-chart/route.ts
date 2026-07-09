@@ -12,16 +12,19 @@ const MODEL = "claude-haiku-4-5-20251001";
 const CHART_FIELDS = [
   "size", "chestCm", "shoulderWidthCm", "sleeveLengthCm", "bodyLengthCm", "neckCm",
   "waistCm", "hipsCm", "inseamCm", "thighCm", "riseCm",
+  "footLengthCm", "shoeSizeUs", "shoeSizeEu", "shoeSizeUk",
 ] as const;
 
 const PROMPT = `You are reading a clothing/footwear size chart from a product photo. Extract every size row into structured data.
 
 Rules:
 - Respond with ONLY a single JSON object. No markdown code fences, no commentary, nothing before or after the JSON.
-- Convert every numeric measurement to centimeters (cm). If the chart is already in inches, multiply by 2.54. If values look like millimeters (e.g. in the 600-1400 range for a chest/waist figure), divide by 10. Typical adult chest/waist/hip measurements are roughly 60-140cm — use that as a sanity check.
+- Convert every LENGTH measurement (chest, waist, hips, sleeve, etc. — not shoe sizes) to centimeters. If the chart is in inches, multiply by 2.54. If values look like millimeters (numbers in the 600-1400 range for a chest/waist figure, or 200-330 for a foot length), divide by 10. Typical adult chest/waist/hip measurements are roughly 60-140cm; a typical adult foot length is roughly 22-30cm — use those ranges as a sanity check on which unit you're looking at.
+- IMPORTANT — flat vs. full circumference: many charts (especially from Chinese sellers) measure chest/waist/hips/neck/thigh with the garment laid FLAT and measured straight across, which is roughly HALF the actual circumference. Watch for: a label saying "flat", "平量" or similar; a diagram showing the garment folded/laid flat; or numbers that look implausibly small for an adult garment (e.g. a "chest" figure under ~70cm, a "waist" under ~55cm). When you see these signs, DOUBLE the raw number before reporting chestCm/waistCm/hipsCm/neckCm/thighCm, since the recommendation engine expects true circumference, not the flat/half figure. If you're not sure whether a chart is flat-measured, report the number as-is — a second automated check downstream also watches for this.
+- For footwear charts: extract footLengthCm (the actual foot/insole length in cm — convert mm by dividing by 10, inches by multiplying by 2.54) whenever a length is shown. Also extract shoeSizeUs, shoeSizeEu, and/or shoeSizeUk exactly as printed (these are size-scale numbers, e.g. 9, 42, 8 — do NOT convert or scale them, just copy the number).
 - Use exactly these field names for whichever columns the chart actually has — omit any field the chart doesn't show. Never invent or guess a number that isn't legible.
-  size (string label exactly as shown, e.g. "M", "L", "42", "US 9"), chestCm, shoulderWidthCm, sleeveLengthCm, bodyLengthCm, neckCm, waistCm, hipsCm, inseamCm, thighCm, riseCm
-- garmentType: "top" if it has chest/shoulder/sleeve columns, "outerwear" if it's clearly a jacket/coat chart, "bottom" if it has waist/hips/inseam columns, otherwise "unknown".
+  size (string label exactly as shown, e.g. "M", "L", "42", "US 9"), chestCm, shoulderWidthCm, sleeveLengthCm, bodyLengthCm, neckCm, waistCm, hipsCm, inseamCm, thighCm, riseCm, footLengthCm, shoeSizeUs, shoeSizeEu, shoeSizeUk
+- garmentType: "top" if it has chest/shoulder/sleeve columns, "outerwear" if it's clearly a jacket/coat chart, "bottom" if it has waist/hips/inseam columns, "footwear" if it has foot length or shoe size columns, otherwise "unknown".
 - If the image is NOT a size chart at all (a product photo, model shot, logo, random detail shot), respond with exactly: {"error": "not_a_size_chart"}
 - If part of the chart is illegible, just omit those specific fields for that row rather than guessing a value.
 
@@ -39,7 +42,7 @@ function stripCodeFence(text: string): string {
 }
 
 function isGarmentType(v: unknown): v is GarmentType {
-  return v === "top" || v === "bottom" || v === "outerwear" || v === "unknown";
+  return v === "top" || v === "bottom" || v === "outerwear" || v === "footwear" || v === "unknown";
 }
 
 /** Defensive validation — only keep fields we actually asked for, coerced to number, never trust the model blindly. */
