@@ -14,15 +14,18 @@ import type { NextConfig } from "next";
 // avatar CDN. For a production Clerk instance on a custom domain, add that
 // domain to script-src and frame-src.
 const clerk = "https://*.clerk.accounts.dev https://*.clerk.com";
+// Clerk's bot protection embeds Cloudflare Turnstile, which loads BOTH a script
+// and an iframe from this host — so it must be in script-src and frame-src.
+const turnstile = "https://challenges.cloudflare.com";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${clerk}`,
+  `script-src 'self' 'unsafe-inline' ${clerk} ${turnstile}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https:",
   "worker-src 'self' blob:",
-  `frame-src 'self' ${clerk} https://challenges.cloudflare.com`,
+  `frame-src 'self' ${clerk} ${turnstile}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
