@@ -149,7 +149,9 @@ function SearchView() {
 
       {results.length === 0 ? (
         <div className="rounded-none border border-dashed border-ink-500 py-16 text-center text-sm text-mist-400">
-          No matches. Loosen a filter, or paste a marketplace link to convert it directly.
+          {catalogItems.length === 0
+            ? "No finds in the catalog yet — paste a marketplace or agent link above to convert it, or browse stores from Discover while the catalog fills up."
+            : "No matches. Loosen a filter, or paste a marketplace link to convert it directly."}
         </div>
       ) : (
         <div className={`grid ${GRID[prefs.cardSize]}`}>

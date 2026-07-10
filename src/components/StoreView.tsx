@@ -35,15 +35,28 @@ async function fetchAlbums(
   };
 }
 
-/** Real price lives in the album description, not the title (see AlbumModal) — fetch just that. */
-async function fetchAlbumDescription(host: string, yupooId: string): Promise<string | null> {
+/**
+ * Real price lives in the album description, not the title (see AlbumModal) —
+ * fetch just that. A 429 is reported distinctly (with the server's Retry-After)
+ * so the prefetch loop can back off and retry rather than permanently showing
+ * no price; any other failure resolves to a null description (price unknown).
+ */
+type DescriptionResult =
+  | { rateLimited: false; description: string | null }
+  | { rateLimited: true; retryAfterMs: number };
+
+async function fetchAlbumDescription(host: string, yupooId: string): Promise<DescriptionResult> {
   try {
     const res = await fetch(`/api/yupoo/album?host=${encodeURIComponent(host)}&id=${yupooId}&light=1`);
-    if (!res.ok) return null;
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("Retry-After"));
+      return { rateLimited: true, retryAfterMs: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 5000 };
+    }
+    if (!res.ok) return { rateLimited: false, description: null };
     const data = (await res.json()) as { description?: string | null };
-    return data.description ?? null;
+    return { rateLimited: false, description: data.description ?? null };
   } catch {
-    return null;
+    return { rateLimited: false, description: null };
   }
 }
 
@@ -204,8 +217,16 @@ export function StoreView({ id }: { id: string }) {
     async function worker() {
       while (cursor < toFetch.length) {
         const album = toFetch[cursor++];
-        const description = await fetchAlbumDescription(yupooHost!, album.yupooId!);
+        let result = await fetchAlbumDescription(yupooHost!, album.yupooId!);
+        // Back off and retry on rate-limit (bounded) rather than silently
+        // falling back to the title and showing no price for this album.
+        for (let attempt = 0; result.rateLimited && attempt < 2 && !cancelled; attempt++) {
+          await new Promise((r) => setTimeout(r, result.rateLimited ? result.retryAfterMs : 0));
+          if (cancelled) return;
+          result = await fetchAlbumDescription(yupooHost!, album.yupooId!);
+        }
         if (cancelled) return;
+        const description = result.rateLimited ? null : result.description;
         setAlbumPrices((prev) => ({
           ...prev,
           [album.id]: parsePriceCnyDetailed(description ?? album.name),

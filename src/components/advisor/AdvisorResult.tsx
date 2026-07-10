@@ -113,6 +113,14 @@ export function AdvisorResult({
       )}
 
       <div className="border-t border-white/5 p-5">
+        <p className="text-[11px] leading-relaxed text-mist-500">
+          This is a best-effort estimate from the seller&rsquo;s chart and your measurements — not a
+          guarantee of fit. Charts are often approximate or mislabeled, so double-check the numbers
+          above against the original photo before you buy.
+        </p>
+      </div>
+
+      <div className="border-t border-white/5 p-5">
         <button
           onClick={onReset}
           className="flex items-center gap-1.5 border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"

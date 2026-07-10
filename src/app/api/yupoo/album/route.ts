@@ -7,9 +7,12 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
 // The store-page price prefetch fires one of these per visible album (light
-// mode), which can legitimately be a few dozen in one page load — generous
-// ceiling, just there to stop scripted scraping.
-const LIMIT = 150;
+// mode) — up to 120 on the first page, plus another ~120 each time the
+// shopper hits "load more", plus the full fetch when they open an album, all
+// sharing this per-IP bucket. Kept high enough that ordinary multi-page
+// browsing never trips it; the client also backs off on 429 rather than
+// dropping the price. This ceiling is just a backstop against scripted scraping.
+const LIMIT = 300;
 const WINDOW_MS = 60_000;
 
 function decodeEntities(s: string): string {

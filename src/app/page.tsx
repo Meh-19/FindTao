@@ -18,7 +18,8 @@ const ACTIONS = [
 export default function HomePage() {
   const { library, hydrated, directory, allStores, catalogItems } = useStore();
   const featured = catalogItems.slice(0, 4);
-  const communityStores = directory.filter((s) => s.discover !== false && !s.banned).slice(0, 8);
+  const visibleStores = directory.filter((s) => s.discover !== false && !s.banned);
+  const communityStores = visibleStores.slice(0, 8);
   const savedCount = hydrated ? allStores.filter((s) => library.includes(s.id)).length : 0;
 
   return (
@@ -38,7 +39,7 @@ export default function HomePage() {
         </p>
         <div className="mt-6 flex items-center justify-center gap-10 text-center">
           {[
-            { n: communityStores.length, label: "community stores" },
+            { n: visibleStores.length, label: "community stores" },
             { n: savedCount, label: "stores in library" },
             { n: ACTIVE_AGENTS.length, label: "agents supported" },
           ].map(({ n, label }) => (

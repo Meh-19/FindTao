@@ -52,6 +52,16 @@ insert into public.profiles (user_id, email)
 select id, email from auth.users
 on conflict (user_id) do nothing;
 
+-- Bootstrap the site owner with the 'owner' role tag so the admin UI shows up
+-- for them without the email ever being shipped to the client bundle (the
+-- client gates the /dev UI on these tags alone). is_admin() below still grants
+-- this email admin at the RLS layer regardless, so this only affects UI
+-- visibility. Change the email here if the owner ever changes.
+update public.profiles
+  set tags = array['owner']
+  where email = 'ren.tipton@icloud.com'
+    and not (tags && array['owner', 'admin']);
+
 -- Admin check: the owner email is always admin; otherwise the profile needs
 -- an 'admin' or 'owner' tag. security definer so RLS policies can call it.
 create or replace function public.is_admin()

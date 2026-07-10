@@ -27,7 +27,8 @@ export const AGENTS: AgentConfig[] = [
     name: "Wegobuy",
     homepage: "https://www.wegobuy.com",
     templates: { all: "https://www.wegobuy.com/en/page/buy/?url={encodedRawUrl}" },
-    active: true,
+    active: false,
+    note: "Domain no longer resolves (no DNS A/AAAA records as of 2026-07) — superseded by AllChinaBuy, its live international rebrand with the same link format. Flip active only if wegobuy.com returns.",
   },
   {
     id: "sugargoo",
@@ -79,6 +80,7 @@ export const AGENTS: AgentConfig[] = [
       "1688": "https://www.basetao.com/best-taobao-agent-service/products/agent/1688/{itemId}.html",
     },
     active: true,
+    note: "Unverified — this product path 301-redirects to basetao.com/ for test item IDs. Confirm against a real Basetao product URL before trusting; the path may be stale.",
   },
   {
     id: "allchinabuy",

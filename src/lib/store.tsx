@@ -13,9 +13,6 @@ import type { StoreCategory, StoreInfo } from "@/data/stores";
 import type { CatalogItem, Category } from "@/data/catalog";
 import { EMPTY_MEASUREMENTS, type Measurements } from "./measurements";
 
-/** Always treated as admin, before any profile tags load. */
-export const OWNER_EMAIL = "ren.tipton@icloud.com";
-
 export interface TagDef {
   id: number;
   kind: "store" | "user";
@@ -890,12 +887,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [directory, userStores],
   );
 
+  // Admin UI visibility is driven purely by profile role tags — the owner's
+  // email is never shipped to the client. The owner is bootstrapped with an
+  // 'owner' tag server-side (see supabase/schema.sql), and the database's own
+  // is_admin() RLS check is the real security gate regardless of this flag.
   const isAdmin = useMemo(
-    () =>
-      user !== null &&
-      (user.email === OWNER_EMAIL ||
-        profileTags.includes("admin") ||
-        profileTags.includes("owner")),
+    () => user !== null && (profileTags.includes("admin") || profileTags.includes("owner")),
     [user, profileTags],
   );
 
