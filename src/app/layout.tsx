@@ -8,7 +8,10 @@ import { Nav } from "@/components/Nav";
 import { CartPanel } from "@/components/CartPanel";
 import { Topbar, StatusBar, BottomNav, Toasts } from "@/components/Chrome";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+// `||` (not `??`) so an empty build arg — e.g. NEXT_PUBLIC_SITE_URL declared in
+// the Dockerfile but unset in Railway — falls back instead of making new URL("")
+// throw "Invalid URL" during the production build.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const DESCRIPTION =
   "Browse Taobao, Weidian, 1688 and Xianyu finds from anywhere. Plan hauls, check QC photos, and hand off to your shopping agent in one click.";
 
