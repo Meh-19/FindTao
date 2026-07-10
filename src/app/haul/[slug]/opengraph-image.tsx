@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 import { headers } from "next/headers";
 import { serverSupabase } from "@/lib/serverSupabase";
-import { sanitizeSharedItems } from "@/lib/shareHaul";
+import { sanitizeSharedItems, formatShared } from "@/lib/shareHaul";
+import { formatMoney } from "@/lib/currency";
 import { proxiedImg } from "@/lib/yupoo";
 
 export const runtime = "nodejs";
@@ -9,13 +10,10 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "A shared FindTao haul";
 
-// Cap the number of item photos we fetch so image generation stays fast; extras
-// are summarised as "+N more".
+// Fixed 1200×630 link-unfurl (Discord/Twitter card). The full "copy image" with
+// every item lives at ./image; this stays a tidy summary.
 const MAX_TILES = 12;
 
-/** Fetch an image through the proxy and inline it as a data URL (Satori can't do
- * the Referer-spoofed fetch itself, and inlining avoids one failed image breaking
- * the whole render). Returns null on any failure. */
 async function inline(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
@@ -36,95 +34,49 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? ""}`;
 
-  const name = (row?.name as string) ?? "Haul";
   const owner = (row?.owner_name as string) ?? "someone";
-  const items = sanitizeSharedItems(row?.data);
-  const totalCny = Math.round(Number(row?.total_cny) || 0);
+  const kind = row?.kind === "cart" ? "CART" : "HAUL";
+  const currency = (row?.currency as string) ?? "USD";
+  const rate = Number(row?.rate) || 0;
+  const totalCny = Number(row?.total_cny) || 0;
   const unitCount = (row?.unit_count as number) ?? 0;
-  const weightKg = (((row?.weight_g as number) ?? 0) / 1000).toFixed(1);
+  const allItems = sanitizeSharedItems(row?.data);
+  const stores = [...new Set(allItems.map((i) => i.storeName).filter(Boolean))];
 
-  const withImg = items.filter((i) => i.image && i.imgHost);
+  const withImg = allItems.filter((i) => i.image && i.imgHost);
   const shown = withImg.slice(0, MAX_TILES);
   const tiles = await Promise.all(shown.map((i) => inline(`${origin}${proxiedImg(i.image!, i.imgHost!)}`)));
-  const more = withImg.length - shown.length;
-
-  const bg = "#0a0a0a";
+  const more = allItems.length - shown.length;
   const accent = "#8b5cf6";
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          height: "100%",
-          width: "100%",
-          display: "flex",
-          flexDirection: "column",
-          background: bg,
-          color: "#f5f5f5",
-          padding: 56,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontSize: 30, fontWeight: 800 }}>Find</span>
-            <span style={{ fontSize: 30, fontWeight: 800, color: accent }}>Tao</span>
+      <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", background: "#0a0a0a", color: "#f5f5f5", padding: 56 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 22, letterSpacing: 2, color: "#9a9a9a" }}>FINDTAO {kind} SHARE</span>
+            <span style={{ fontSize: 50, fontWeight: 800, marginTop: 6 }}>
+              {unitCount} items{stores.length ? ` from ${stores.slice(0, 3).join(", ")}` : ""}
+            </span>
+            <span style={{ fontSize: 24, color: "#b5b5b5", marginTop: 4 }}>by {owner}</span>
           </div>
-          <span style={{ fontSize: 22, color: "#9a9a9a" }}>shared haul</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+            <span style={{ fontSize: 40, fontWeight: 800, color: accent }}>{formatMoney(totalCny, "CNY")}</span>
+            <span style={{ fontSize: 24, color: "#b5b5b5" }}>~{formatShared(totalCny, currency, rate)}</span>
+          </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", marginTop: 22 }}>
-          <span style={{ fontSize: 60, fontWeight: 800, lineHeight: 1.1 }}>{name}</span>
-          <span style={{ fontSize: 26, color: "#b5b5b5", marginTop: 6 }}>by {owner}</span>
-        </div>
-
-        <div style={{ display: "flex", gap: 34, marginTop: 18 }}>
-          <span style={{ fontSize: 26, color: "#e5e5e5" }}>
-            {unitCount} item{unitCount === 1 ? "" : "s"}
-          </span>
-          <span style={{ fontSize: 26, color: accent, fontWeight: 700 }}>¥{totalCny.toLocaleString()}</span>
-          <span style={{ fontSize: 26, color: "#e5e5e5" }}>~{weightKg}kg</span>
-        </div>
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 26, flex: 1, alignContent: "flex-start" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28, flex: 1, alignContent: "flex-start" }}>
           {tiles.map((src, i) =>
             src ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={i}
-                src={src}
-                width={150}
-                height={150}
-                style={{ objectFit: "cover", borderRadius: 4, border: "1px solid #222" }}
-              />
+              <img key={i} src={src} width={150} height={150} style={{ objectFit: "cover", borderRadius: 4, border: "1px solid #222" }} />
             ) : (
-              <div
-                key={i}
-                style={{
-                  width: 150,
-                  height: 150,
-                  borderRadius: 4,
-                  display: "flex",
-                  background: "linear-gradient(135deg, #8b5cf6, #22d3ee)",
-                  opacity: 0.5,
-                }}
-              />
+              <div key={i} style={{ width: 150, height: 150, borderRadius: 4, display: "flex", background: "linear-gradient(135deg, #8b5cf6, #22d3ee)", opacity: 0.5 }} />
             ),
           )}
           {more > 0 && (
-            <div
-              style={{
-                width: 150,
-                height: 150,
-                borderRadius: 4,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1px solid #333",
-                fontSize: 30,
-                fontWeight: 700,
-                color: "#cfcfcf",
-              }}
-            >
+            <div style={{ width: 150, height: 150, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #333", fontSize: 30, fontWeight: 700, color: "#cfcfcf" }}>
               +{more}
             </div>
           )}

@@ -116,6 +116,8 @@ export interface Prefs {
   activeHaulId: string;
   /** Personal referral query fragments per agent id — override the site defaults. */
   myRefs: Record<string, string>;
+  /** Reused slug for this user's shared cart, so re-sharing updates one link. */
+  cartShareSlug?: string;
 }
 
 /**
@@ -155,6 +157,13 @@ export function haulStats(items: SavedItem[]): { unitCount: number; totalCny: nu
   const unitCount = items.reduce((sum, i) => sum + i.qty, 0);
   const totalCny = items.reduce((sum, i) => sum + (i.priceCny ?? 0) * i.qty, 0);
   return { unitCount, totalCny, weightG: unitCount * HAUL_UNIT_WEIGHT_G };
+}
+
+/** Distinct stores present in a set of items — powers the share store-filter picker. */
+export function shareableStores(items: SavedItem[]): { id: string; name: string }[] {
+  const seen = new Map<string, string>();
+  for (const i of items) if (i.storeId && !seen.has(i.storeId)) seen.set(i.storeId, i.storeName);
+  return [...seen].map(([id, name]) => ({ id, name }));
 }
 
 function sanitizeItems(value: unknown): SavedItem[] {
@@ -247,6 +256,8 @@ export interface CloudUser {
   email: string | null;
   /** Username captured in auth metadata at sign-up/sign-in time, if any — used to backfill the profiles row. */
   metaUsername: string | null;
+  /** Clerk avatar URL — shown as the owner chip on shared hauls/carts. */
+  image: string | null;
 }
 
 /** Everything that persists — mirrored to localStorage and, when signed in, to Supabase. */
@@ -326,8 +337,10 @@ interface Store {
   removeFromHaul: (haulId: string, itemId: string) => void;
   importCart: (items: SavedItem[]) => void;
   assignCartToHaul: (haulId: string) => void;
-  /** Publish a haul snapshot to shared_hauls (sign-in required); returns the share URL. */
-  shareHaul: (haulId: string) => Promise<string | null>;
+  /** Publish a haul snapshot to shared_hauls (sign-in required); optional store filter; returns the share URL. */
+  shareHaul: (haulId: string, opts?: { storeIds?: string[] }) => Promise<string | null>;
+  /** Publish the current cart as a shared snapshot (sign-in required); optional store filter; returns the share URL. */
+  shareCart: (opts?: { storeIds?: string[] }) => Promise<string | null>;
   /** Delete the published share and clear the haul's share slug. */
   unshareHaul: (haulId: string) => Promise<void>;
   /** Toggle a shared haul's public visibility. */
@@ -612,8 +625,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [cart],
   );
 
+  // Shared payload for both haul and cart shares. `rate` is CNY→currency at
+  // share time so images/preview render a stable secondary price.
+  const buildShareRow = useCallback(
+    (slug: string, kind: "haul" | "cart", name: string, items: SavedItem[], isPublic: boolean) => {
+      const stats = haulStats(items);
+      return {
+        slug,
+        owner_id: user!.id,
+        owner_name: profileName ?? "Anonymous",
+        owner_image: user!.image,
+        kind,
+        name,
+        data: items,
+        total_cny: stats.totalCny,
+        unit_count: stats.unitCount,
+        weight_g: stats.weightG,
+        currency: prefs.currency,
+        rate: prefs.currency === "CNY" ? 1 : rates[prefs.currency] ?? 0,
+        public: isPublic,
+        updated_at: new Date().toISOString(),
+      };
+    },
+    [user, profileName, prefs.currency, rates],
+  );
+
   const shareHaul = useCallback(
-    async (haulId: string): Promise<string | null> => {
+    async (haulId: string, opts?: { storeIds?: string[] }): Promise<string | null> => {
       if (!sb) {
         toast("Sharing needs cloud sync, which isn't configured here", "error");
         return null;
@@ -625,28 +663,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const haul = hauls.find((h) => h.id === haulId);
       if (!haul) return null;
-      if (haul.items.length === 0) {
-        toast("Add some items before sharing", "error");
+      const items = opts?.storeIds?.length
+        ? haul.items.filter((i) => opts.storeIds!.includes(i.storeId))
+        : haul.items;
+      if (items.length === 0) {
+        toast("Nothing to share here", "error");
         return null;
       }
       const slug = haul.shareSlug ?? makeShareSlug();
       const isPublic = haul.sharePublic ?? true;
-      const stats = haulStats(haul.items);
-      const { error } = await sb.from("shared_hauls").upsert(
-        {
-          slug,
-          owner_id: user.id,
-          owner_name: profileName ?? "Anonymous",
-          name: haul.name,
-          data: haul.items,
-          total_cny: stats.totalCny,
-          unit_count: stats.unitCount,
-          weight_g: stats.weightG,
-          public: isPublic,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "slug" },
-      );
+      const { error } = await sb
+        .from("shared_hauls")
+        .upsert(buildShareRow(slug, "haul", haul.name, items, isPublic), { onConflict: "slug" });
       if (error) {
         toast("Couldn't publish the haul — try again", "error");
         return null;
@@ -657,7 +685,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       return `${window.location.origin}/haul/${slug}`;
     },
-    [sb, user, hauls, profileName, clerk, toast],
+    [sb, user, hauls, buildShareRow, clerk, toast],
+  );
+
+  const shareCart = useCallback(
+    async (opts?: { storeIds?: string[] }): Promise<string | null> => {
+      if (!sb) {
+        toast("Sharing needs cloud sync, which isn't configured here", "error");
+        return null;
+      }
+      if (!user) {
+        toast("Sign in to share your cart", "info");
+        clerk.openSignIn();
+        return null;
+      }
+      const items = opts?.storeIds?.length
+        ? cart.filter((i) => opts.storeIds!.includes(i.storeId))
+        : cart;
+      if (items.length === 0) {
+        toast("Nothing to share here", "error");
+        return null;
+      }
+      const slug = prefs.cartShareSlug ?? makeShareSlug();
+      const { error } = await sb
+        .from("shared_hauls")
+        .upsert(buildShareRow(slug, "cart", "Cart", items, true), { onConflict: "slug" });
+      if (error) {
+        toast("Couldn't publish your cart — try again", "error");
+        return null;
+      }
+      if (prefs.cartShareSlug !== slug) setPrefsState((p) => ({ ...p, cartShareSlug: slug }));
+      return `${window.location.origin}/haul/${slug}`;
+    },
+    [sb, user, cart, prefs.cartShareSlug, buildShareRow, clerk, toast],
   );
 
   const unshareHaul = useCallback(
@@ -754,6 +814,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             id: clerkUser.id,
             email: clerkUser.primaryEmailAddress?.emailAddress ?? null,
             metaUsername: clerkUser.username ?? clerkUser.firstName ?? null,
+            image: clerkUser.hasImage ? clerkUser.imageUrl : null,
           }
         : null,
     );
@@ -983,6 +1044,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       importCart,
       assignCartToHaul,
       shareHaul,
+      shareCart,
       unshareHaul,
       setHaulPublic,
       allStores,
@@ -1026,7 +1088,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       wishlist, toggleWishlist, cart, cartOpen,
       addToCart, setCartQty, removeFromCart, importCart, clearCart,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
-      removeFromHaul, assignCartToHaul, shareHaul, unshareHaul, setHaulPublic, allStores, library, favStores,
+      removeFromHaul, assignCartToHaul, shareHaul, shareCart, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, measurements, setMeasurements, toasts, toast,
       sb, user, profileName, syncStatus, lastSyncAt, setAuthOpen,

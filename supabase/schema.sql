@@ -261,15 +261,26 @@ create table if not exists public.shared_hauls (
   slug text primary key,
   owner_id text not null,
   owner_name text not null default 'Anonymous',
+  owner_image text,
+  kind text not null default 'haul',
   name text not null default 'Haul',
   data jsonb not null default '[]'::jsonb,
   total_cny numeric not null default 0,
   unit_count int not null default 0,
   weight_g int not null default 0,
+  -- Sharer's display currency + the CNY→currency rate captured at share time,
+  -- so the preview page and images render a stable secondary price.
+  currency text not null default 'USD',
+  rate numeric not null default 0,
   public boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Add the newer columns to a pre-existing table (idempotent re-run).
+alter table public.shared_hauls add column if not exists owner_image text;
+alter table public.shared_hauls add column if not exists kind text not null default 'haul';
+alter table public.shared_hauls add column if not exists currency text not null default 'USD';
+alter table public.shared_hauls add column if not exists rate numeric not null default 0;
 alter table public.shared_hauls enable row level security;
 create index if not exists shared_hauls_owner_idx on public.shared_hauls (owner_id);
 

@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ImageOff, Link2, Minus, Plus, X } from "lucide-react";
-import { encodeCart } from "@/lib/share";
+import { ImageOff, Minus, Plus, X } from "lucide-react";
 import { proxiedImg } from "@/lib/yupoo";
-import { useStore, type SavedItem } from "@/lib/store";
+import { SharePicker } from "@/components/SharePicker";
+import { useStore, shareableStores, type SavedItem } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 
@@ -31,7 +31,7 @@ function LineThumb({ item }: { item: SavedItem }) {
 export function CartPanel() {
   const {
     cart, cartCount, cartOpen, setCartOpen, setCartQty, removeFromCart, clearCart,
-    hauls, prefs, setPrefs, assignCartToHaul, fmtConverted, toast, hydrated, allStores,
+    hauls, prefs, setPrefs, assignCartToHaul, fmtConverted, toast, hydrated, allStores, shareCart,
   } = useStore();
   const [targetHaul, setTargetHaul] = useState(prefs.activeHaulId);
 
@@ -58,14 +58,6 @@ export function CartPanel() {
 
   function storeHref(line: SavedItem): string | null {
     return allStores.some((s) => s.id === line.storeId) ? `/store/${line.storeId}` : null;
-  }
-
-  function shareCart() {
-    const url = `${window.location.origin}/browse?cart=${encodeCart(cart)}`;
-    navigator.clipboard.writeText(url).then(
-      () => toast("Share link copied — opening it adds these items to the cart"),
-      () => toast("Couldn't copy the link", "error"),
-    );
   }
 
   function assign() {
@@ -218,13 +210,15 @@ export function CartPanel() {
                 Assign to haul
               </button>
             </div>
-            <button
-              onClick={shareCart}
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
-            >
-              <Link2 size={13} aria-hidden="true" />
-              Share cart
-            </button>
+            <div className="mt-2">
+              <SharePicker
+                stores={shareableStores(cart)}
+                publish={(storeIds) => shareCart({ storeIds })}
+                triggerLabel="Share cart"
+                triggerClass="flex w-full items-center justify-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+                dropUp
+              />
+            </div>
           </div>
         )}
       </aside>

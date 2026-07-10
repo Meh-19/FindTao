@@ -1,3 +1,5 @@
+import { CURRENCIES, FALLBACK_RATES, formatMoney, type Currency } from "./currency";
+
 /**
  * Self-contained snapshot shapes for shared hauls (the shared_hauls.data JSON).
  * Kept out of the client store module so server routes — the share page and the
@@ -20,11 +22,16 @@ export interface SharedItem {
 export interface SharedHaul {
   slug: string;
   ownerName: string;
+  ownerImage: string | null;
+  kind: "haul" | "cart";
   name: string;
   items: SharedItem[];
   totalCny: number;
   unitCount: number;
   weightG: number;
+  /** Sharer's display currency + CNY→currency rate captured at share time. */
+  currency: string;
+  rate: number;
   public: boolean;
 }
 
@@ -49,6 +56,19 @@ export function sanitizeSharedItems(value: unknown): SharedItem[] {
     });
   }
   return out;
+}
+
+/** Coerce a stored currency code to a known Currency (defaults to USD). */
+export function sharedCurrency(code: string): Currency {
+  return (CURRENCIES as readonly string[]).includes(code) ? (code as Currency) : "USD";
+}
+
+/** Format a CNY amount in the share's stored currency, using its captured rate (or a fallback). */
+export function formatShared(cny: number, code: string, rate: number): string {
+  const cur = sharedCurrency(code);
+  if (cur === "CNY") return formatMoney(cny, "CNY");
+  const r = rate > 0 ? rate : FALLBACK_RATES[cur];
+  return formatMoney(cny * r, cur);
 }
 
 /** Short, URL-safe, unambiguous share slug (no 0/o/1/l/i). */

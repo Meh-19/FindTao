@@ -1,13 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import { itemStore } from "@/data/catalog";
 import { ItemCard } from "@/components/ItemCard";
 import { parseLink } from "@/lib/links";
 import type { Marketplace } from "@/lib/links";
-import { decodeCart } from "@/lib/share";
 import { useStore, type CardSize } from "@/lib/store";
 
 const MARKETPLACES: { value: Marketplace | "all"; label: string }[] = [
@@ -32,32 +31,13 @@ const chipClass =
 
 function SearchView() {
   const router = useRouter();
-  const params = useSearchParams();
-  const { prefs, wishlist, importCart, setCartOpen, toast, hydrated, catalogItems } = useStore();
+  const { prefs, wishlist, hydrated, catalogItems } = useStore();
   const [query, setQuery] = useState("");
   const [marketplace, setMarketplace] = useState<Marketplace | "all">("all");
   const [qcOnly, setQcOnly] = useState(false);
   const [trustedOnly, setTrustedOnly] = useState(false);
   const [wishOnly, setWishOnly] = useState(false);
   const [maxPrice, setMaxPrice] = useState(300);
-  const importedRef = useRef(false);
-
-  // Shared-cart import: /browse?cart=<base64 payload> merges those items in.
-  useEffect(() => {
-    if (!hydrated || importedRef.current) return;
-    const shared = params.get("cart");
-    if (!shared) return;
-    importedRef.current = true;
-    const items = decodeCart(shared);
-    if (items) {
-      importCart(items);
-      toast(`Imported ${items.length} shared cart item${items.length === 1 ? "" : "s"}`);
-      setCartOpen(true);
-    } else {
-      toast("That share link couldn't be read", "error");
-    }
-    router.replace("/browse");
-  }, [hydrated, params, importCart, setCartOpen, toast, router]);
 
   const pastedLink = useMemo(() => parseLink(query), [query]);
 

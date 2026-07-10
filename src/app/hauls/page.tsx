@@ -3,16 +3,17 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  ExternalLink, Globe, ImageIcon, ImageOff, Loader2, Lock, Pencil, Plus, Share2, X,
+  ExternalLink, Globe, ImageOff, Lock, Pencil, Plus, Share2, X,
 } from "lucide-react";
 import { SignInButton } from "@clerk/nextjs";
 import { CopyButton } from "@/components/CopyButton";
 import { HaulPreview } from "@/components/HaulPreview";
+import { SharePicker } from "@/components/SharePicker";
 import { formatMoney } from "@/lib/currency";
 import { parseLink, toAgentUrl } from "@/lib/links";
 import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { proxiedImg } from "@/lib/yupoo";
-import { useStore, haulStats, HAUL_UNIT_WEIGHT_G, type Haul } from "@/lib/store";
+import { useStore, haulStats, shareableStores, HAUL_UNIT_WEIGHT_G, type Haul } from "@/lib/store";
 
 function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
@@ -21,8 +22,6 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   } = useStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(haul.name);
-  const [imgBusy, setImgBusy] = useState(false);
-  const [sharing, setSharing] = useState(false);
 
   const agent = getAgent(prefs.agentId) ?? getAgent(DEFAULT_AGENT_ID)!;
   const items = haul.items;
@@ -52,36 +51,6 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
     const trimmed = name.trim();
     if (trimmed && trimmed !== haul.name) renameHaul(haul.id, trimmed);
     setEditing(false);
-  }
-
-  async function doShare() {
-    if (sharing) return;
-    setSharing(true);
-    const url = await shareHaul(haul.id);
-    setSharing(false);
-    if (url) toast("Share link ready — copy it below");
-  }
-
-  async function copyImage() {
-    if (imgBusy) return;
-    setImgBusy(true);
-    try {
-      let slug = haul.shareSlug;
-      if (!slug) {
-        const url = await shareHaul(haul.id);
-        if (!url) return;
-        slug = url.split("/haul/")[1];
-      }
-      const res = await fetch(`/haul/${slug}/opengraph-image`);
-      if (!res.ok) throw new Error("image fetch failed");
-      const blob = await res.blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
-      toast("Haul image copied — paste it anywhere");
-    } catch {
-      toast("Couldn't copy the image — try the link instead", "error");
-    } finally {
-      setImgBusy(false);
-    }
   }
 
   const shareBtn = "flex items-center gap-1.5 rounded-none border border-ink-500 px-3 py-1.5 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60";
@@ -178,59 +147,43 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
 
         {/* Share bar */}
         <div className="mt-4 border-t border-white/5 pt-3">
-          {shareUrl ? (
-            <div className="space-y-2">
-              <div className="flex items-stretch gap-2">
-                <input
-                  readOnly
-                  value={shareUrl}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-[11px] text-mist-300 outline-none"
-                />
-                <CopyButton text={shareUrl} label="Copy" className="shrink-0 px-3 py-1.5 text-xs" />
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button onClick={copyImage} disabled={imgBusy} className={shareBtn}>
-                  {imgBusy ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <ImageIcon size={13} aria-hidden="true" />}
-                  Copy image
-                </button>
-                <button
-                  onClick={() => setHaulPublic(haul.id, !isPublic)}
-                  className={shareBtn}
-                  title={isPublic ? "Anyone with the link can view" : "Only you can view"}
-                >
-                  {isPublic ? <Globe size={13} aria-hidden="true" /> : <Lock size={13} aria-hidden="true" />}
-                  {isPublic ? "Public" : "Private"}
-                </button>
-                <a href={shareUrl} target="_blank" rel="noopener noreferrer" className={shareBtn}>
-                  <ExternalLink size={13} aria-hidden="true" /> Open
-                </a>
-                <button
-                  onClick={() => unshareHaul(haul.id)}
-                  className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
-                >
-                  Unshare
-                </button>
-              </div>
-            </div>
-          ) : signedIn ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button onClick={doShare} disabled={sharing || items.length === 0} className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
-                {sharing ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Share2 size={13} aria-hidden="true" />}
-                Share haul
-              </button>
-              <button onClick={copyImage} disabled={imgBusy || items.length === 0} className={shareBtn}>
-                {imgBusy ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <ImageIcon size={13} aria-hidden="true" />}
-                Copy image
-              </button>
-              {items.length === 0 && <span className="text-[11px] text-mist-500">Add items to share this haul.</span>}
-            </div>
-          ) : (
+          {!signedIn ? (
             <SignInButton mode="modal">
               <button className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-xs font-semibold text-white">
                 <Share2 size={13} aria-hidden="true" /> Sign in to share
               </button>
             </SignInButton>
+          ) : items.length === 0 ? (
+            <p className="text-[11px] text-mist-500">Add items to share this haul.</p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <SharePicker
+                stores={shareableStores(items)}
+                publish={(storeIds) => shareHaul(haul.id, { storeIds })}
+                triggerLabel="Share haul"
+              />
+              {shareUrl && (
+                <>
+                  <a href={shareUrl} target="_blank" rel="noopener noreferrer" className={shareBtn}>
+                    <ExternalLink size={13} aria-hidden="true" /> Open
+                  </a>
+                  <button
+                    onClick={() => setHaulPublic(haul.id, !isPublic)}
+                    className={shareBtn}
+                    title={isPublic ? "Anyone with the link can view" : "Only you can view"}
+                  >
+                    {isPublic ? <Globe size={13} aria-hidden="true" /> : <Lock size={13} aria-hidden="true" />}
+                    {isPublic ? "Public" : "Private"}
+                  </button>
+                  <button
+                    onClick={() => unshareHaul(haul.id)}
+                    className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
+                  >
+                    Unshare
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 

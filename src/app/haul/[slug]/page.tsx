@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ImageOff } from "lucide-react";
 import { serverSupabase } from "@/lib/serverSupabase";
-import { sanitizeSharedItems, type SharedHaul } from "@/lib/shareHaul";
+import { sanitizeSharedItems, formatShared, type SharedHaul } from "@/lib/shareHaul";
 import { HaulPreview } from "@/components/HaulPreview";
-import { proxiedImg } from "@/lib/yupoo";
+import { SharedItemGrid } from "@/components/SharedItemGrid";
 import { formatMoney } from "@/lib/currency";
-import { CloneHaulButton } from "./CloneHaulButton";
 
 // Shares are snapshots that can change; never statically cache the page.
 export const dynamic = "force-dynamic";
@@ -20,13 +18,21 @@ async function getShare(slug: string): Promise<SharedHaul | null> {
   return {
     slug: data.slug,
     ownerName: data.owner_name ?? "Anonymous",
+    ownerImage: data.owner_image ?? null,
+    kind: data.kind === "cart" ? "cart" : "haul",
     name: data.name ?? "Haul",
     items: sanitizeSharedItems(data.data),
     totalCny: Number(data.total_cny) || 0,
     unitCount: data.unit_count ?? 0,
     weightG: data.weight_g ?? 0,
+    currency: data.currency ?? "USD",
+    rate: Number(data.rate) || 0,
     public: !!data.public,
   };
+}
+
+function storeNames(haul: SharedHaul): string[] {
+  return [...new Set(haul.items.map((i) => i.storeName).filter(Boolean))];
 }
 
 export async function generateMetadata({
@@ -36,12 +42,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const haul = await getShare(slug);
-  if (!haul) return { title: "Haul not found — FindTao" };
-  const title = `${haul.name} — a haul by ${haul.ownerName}`;
+  if (!haul) return { title: "Not found — FindTao" };
+  const stores = storeNames(haul);
+  const kindLabel = haul.kind === "cart" ? "cart" : "haul";
+  const title = `${haul.ownerName}'s ${kindLabel}${stores.length ? ` — ${stores.slice(0, 3).join(", ")}` : ""}`;
   const description = `${haul.unitCount} item${haul.unitCount === 1 ? "" : "s"} · ${formatMoney(
     haul.totalCny,
     "CNY",
-  )} · ~${(haul.weightG / 1000).toFixed(1)}kg — shared on FindTao`;
+  )} ${formatShared(haul.totalCny, haul.currency, haul.rate)} · ~${(haul.weightG / 1000).toFixed(1)}kg — shared on FindTao`;
   // Next auto-attaches the sibling opengraph-image route as og:image.
   return {
     title,
@@ -65,20 +73,46 @@ export default async function SharedHaulPage({ params }: { params: Promise<{ slu
   const haul = await getShare(slug);
   if (!haul) notFound();
 
+  const kindLabel = haul.kind === "cart" ? "Shared cart" : "Shared haul";
+  const stores = storeNames(haul);
+
   return (
-    <div className="fade-up mx-auto max-w-lg py-6">
+    <div className="fade-up mx-auto max-w-2xl py-6">
       <div className="overflow-hidden rounded-none border border-white/10 bg-ink-800/80">
         <div className="flow-bg h-1" />
         <div className="p-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-mist-500">Shared haul</p>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-mist-100">{haul.name}</h1>
-          <p className="mt-0.5 text-sm text-mist-400">
-            by <span className="font-medium text-mist-200">{haul.ownerName}</span>
-          </p>
+          <div className="flex items-center gap-3">
+            {haul.ownerImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={haul.ownerImage}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"
+              />
+            ) : (
+              <span className="flow-bg flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
+                {haul.ownerName.slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-mist-500">{kindLabel}</p>
+              <p className="truncate text-sm font-semibold text-mist-100">{haul.ownerName}</p>
+            </div>
+          </div>
+
+          {haul.kind !== "cart" && (
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-mist-100">{haul.name}</h1>
+          )}
+          {stores.length > 0 && (
+            <p className="mt-1 text-sm text-mist-400">
+              {stores.slice(0, 4).join(" · ")}
+              {stores.length > 4 ? ` +${stores.length - 4} more` : ""}
+            </p>
+          )}
 
           <HaulPreview
             items={haul.items}
-            className="mx-auto mt-5 aspect-square w-full max-w-[16rem] rounded-none border border-white/5"
+            className="mx-auto mt-5 aspect-square w-full max-w-[15rem] rounded-none border border-white/5"
           />
 
           <div className="mt-5 grid grid-cols-3 gap-2 text-center">
@@ -86,41 +120,11 @@ export default async function SharedHaulPage({ params }: { params: Promise<{ slu
             <Stat label="Total" value={formatMoney(haul.totalCny, "CNY")} />
             <Stat label="Est. weight" value={`~${(haul.weightG / 1000).toFixed(1)}kg`} />
           </div>
+          <p className="mt-1.5 text-center text-xs text-mist-500">
+            ≈ {formatShared(haul.totalCny, haul.currency, haul.rate)} total
+          </p>
 
-          <CloneHaulButton items={haul.items} name={haul.name} />
-
-          <div className="mt-5 space-y-1.5">
-            {haul.items.map((item, i) => (
-              <div
-                key={`${item.id}-${i}`}
-                className="flex items-center gap-3 rounded-none border border-white/5 bg-ink-900/60 p-2"
-              >
-                {item.image && item.imgHost ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={proxiedImg(item.image, item.imgHost)}
-                    alt=""
-                    className="h-10 w-12 shrink-0 rounded-none border border-white/5 object-cover"
-                  />
-                ) : (
-                  <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
-                    <ImageOff size={13} aria-hidden="true" />
-                  </span>
-                )}
-                <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
-                  {item.title}
-                </p>
-                {item.qty > 1 && (
-                  <span className="rounded-none bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
-                    ×{item.qty}
-                  </span>
-                )}
-                <span className="text-[11px] tabular-nums text-mist-500">
-                  {item.priceCny !== null ? formatMoney(item.priceCny * item.qty, "CNY") : "—"}
-                </span>
-              </div>
-            ))}
-          </div>
+          <SharedItemGrid items={haul.items} currency={haul.currency} rate={haul.rate} />
         </div>
       </div>
 
