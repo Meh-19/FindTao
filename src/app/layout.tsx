@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { Nav } from "@/components/Nav";
@@ -40,11 +41,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Topbar />
               <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-8">{children}</main>
               <footer className="border-t border-white/5 py-6">
-                <p className="mx-auto max-w-6xl px-4 text-xs text-mist-500 md:px-8">
-                  FindTao is a discovery tool. Purchases happen on the agent you choose — we never
-                  handle payments. Outbound agent links may include our referral code, which funds
-                  the site; prices are unchanged.
-                </p>
+                <div className="mx-auto max-w-6xl px-4 md:px-8">
+                  <p className="text-xs text-mist-500">
+                    FindTao is a discovery tool. Purchases happen on the agent you choose — we never
+                    handle payments. Outbound agent links may include our referral code, which funds
+                    the site; prices are unchanged.
+                  </p>
+                  <nav className="mt-2 flex gap-4 text-xs text-mist-500">
+                    <Link href="/privacy" className="transition-colors hover:text-mist-300">
+                      Privacy
+                    </Link>
+                    <Link href="/terms" className="transition-colors hover:text-mist-300">
+                      Terms
+                    </Link>
+                  </nav>
+                </div>
               </footer>
             </div>
           </div>
