@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SignInButton } from "@clerk/nextjs";
 import {
   Globe,
   Home,
@@ -38,7 +39,7 @@ const LINKS = [
 ];
 
 function AccountFooter() {
-  const { cloudEnabled, user, profileName, hydrated, setAuthOpen } = useStore();
+  const { cloudEnabled, user, profileName, hydrated } = useStore();
   const signedIn = hydrated && cloudEnabled && user;
   const display = signedIn ? (profileName ?? user.email ?? "Account") : "Guest";
 
@@ -68,12 +69,12 @@ function AccountFooter() {
 
   const cls = "flex w-full items-center gap-2.5 border-t border-white/5 px-5 py-3.5 transition-colors hover:bg-white/5";
 
-  // Signed out → open the auth modal; signed in → manage the account in Settings.
+  // Signed out → open Clerk's sign-in modal; signed in → manage the account in Settings.
   if (hydrated && cloudEnabled && !user) {
     return (
-      <button onClick={() => setAuthOpen(true)} className={cls}>
-        {inner}
-      </button>
+      <SignInButton mode="modal">
+        <button className={cls}>{inner}</button>
+      </SignInButton>
     );
   }
   return (

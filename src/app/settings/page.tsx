@@ -1,7 +1,7 @@
 "use client";
 
 import { CloudUpload, LogOut } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { CURRENCIES, type Currency } from "@/lib/currency";
 import { useStore, ACCENTS, type AccentId, type CardSize } from "@/lib/store";
@@ -28,7 +28,7 @@ function Section({ title, blurb, children }: { title: string; blurb: string; chi
 function AccountSection() {
   const {
     cloudEnabled, user, profileName, syncStatus, lastSyncAt, signOut, syncNow,
-    profileTags, tagDefs, setAuthOpen,
+    profileTags, tagDefs,
   } = useStore();
   const roleDefs = tagDefs.filter((t) => t.kind === "user" && profileTags.includes(t.name));
 
@@ -53,12 +53,18 @@ function AccountSection() {
         <p className="mt-0.5 text-xs text-mist-500">
           Sign in to sync hauls, library, and settings across devices.
         </p>
-        <button
-          onClick={() => setAuthOpen(true)}
-          className="btn-glow mt-3 rounded-none px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          Sign in / Create account
-        </button>
+        <div className="mt-3 flex gap-2">
+          <SignInButton mode="modal">
+            <button className="btn-glow rounded-none px-4 py-2.5 text-sm font-semibold text-white">
+              Sign in
+            </button>
+          </SignInButton>
+          <SignUpButton mode="modal">
+            <button className="rounded-none border border-ink-500 px-4 py-2.5 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300">
+              Create account
+            </button>
+          </SignUpButton>
+        </div>
       </div>
     );
   }
