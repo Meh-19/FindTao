@@ -24,14 +24,17 @@ export function catalogToSaved(item: CatalogItem): Omit<SavedItem, "qty"> {
 }
 
 export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: number }) {
-  const { prefs, inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast } = useStore();
+  const { prefs, inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, activeHaul } = useStore();
   const store = itemStore(item);
   const carted = hydrated && inCart(`cat:${item.id}`);
+  const inHaul = hydrated && activeHaul.items.some((i) => i.id === `cat:${item.id}`);
   const wished = hydrated && wishlist.includes(item.id);
 
   return (
     <div
-      className="card-pop fade-up group relative overflow-hidden rounded-none border border-white/5 bg-ink-800/80"
+      className={`card-pop fade-up group relative overflow-hidden rounded-none border bg-ink-800/80 ${
+        carted || inHaul ? "border-emerald-400/40" : "border-white/5"
+      }`}
       style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
     >
       <Link href={`/item/${item.id}`} className="block">
@@ -59,6 +62,11 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
                 Low data
               </span>
             ) : null}
+            {inHaul && (
+              <span className="rounded-none border border-neon-400/30 bg-neon-500/10 px-2 py-0.5 font-medium text-neon-300">
+                In {activeHaul.name}
+              </span>
+            )}
           </div>
         </div>
       </Link>

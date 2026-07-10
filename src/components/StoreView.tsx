@@ -133,6 +133,7 @@ export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
     favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart, catalogItems,
+    inCart, activeHaul,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(catalogItems, id);
@@ -390,12 +391,31 @@ export function StoreView({ id }: { id: string }) {
                 // Quick-add only makes sense for live Yupoo albums — placeholder
                 // albums have no real yupooId/cover to attach a cart line to.
                 const canQuickAdd = Boolean(yupooHost && album.yupooId);
+                const cartId = canQuickAdd ? `album:${yupooHost}:${album.yupooId}` : null;
+                const inCartNow = !!cartId && inCart(cartId);
+                const inHaulNow = !!cartId && activeHaul.items.some((it) => it.id === cartId);
                 return (
                   <div
                     key={album.id}
-                    className="card-pop fade-up group relative overflow-hidden rounded-none border border-white/5 bg-ink-800/80"
+                    className={`card-pop fade-up group relative overflow-hidden rounded-none border bg-ink-800/80 ${
+                      inCartNow || inHaulNow ? "border-emerald-400/50" : "border-white/5"
+                    }`}
                     style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
                   >
+                    {(inCartNow || inHaulNow) && (
+                      <div className="pointer-events-none absolute left-2 top-2 z-10 flex flex-col items-start gap-1">
+                        {inCartNow && (
+                          <span className="flex items-center gap-1 rounded-none border border-emerald-400/50 bg-ink-950/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300">
+                            <Check size={9} aria-hidden="true" /> In cart
+                          </span>
+                        )}
+                        {inHaulNow && (
+                          <span className="flex items-center gap-1 rounded-none border border-neon-400/50 bg-ink-950/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neon-300">
+                            <Check size={9} aria-hidden="true" /> In haul
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <button onClick={() => setOpenAlbum(album)} className="block w-full text-left">
                       <div
                         className="tile-shimmer relative flex aspect-square items-center justify-center overflow-hidden"
