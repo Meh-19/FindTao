@@ -2,13 +2,19 @@
 -- Idempotent: run the whole file in the Supabase dashboard → SQL Editor any time
 -- it changes (or `supabase db push`).
 --
--- AUTH: identity comes from Clerk via the native Supabase third-party-auth
--- integration, not Supabase Auth. Clerk user ids are strings, so id columns are
--- `text` and RLS is keyed on the Clerk `sub` claim: (auth.jwt() ->> 'sub'). The
--- integration also injects a `role: authenticated` claim, which is why per-user
--- policies below are scoped `to authenticated`. BEFORE this works, add Clerk as a
--- provider under Supabase → Authentication → Sign In / Providers (paste your
--- Clerk domain). Public reads stay open to the anon role for signed-out browsing.
+-- AUTH: identity comes from Clerk via the Supabase third-party-auth integration,
+-- not Supabase Auth. Clerk user ids are strings, so id columns are `text` and RLS
+-- is keyed on the verified Clerk `sub` claim: (auth.jwt() ->> 'sub'). BEFORE this
+-- works, add Clerk as a provider under Supabase → Authentication → Sign In /
+-- Providers (paste your Clerk domain) so Supabase validates the token.
+--
+-- Note: policies are NOT scoped `to authenticated`. Clerk's session token doesn't
+-- reliably carry a `role: "authenticated"` claim, so Supabase runs these requests
+-- as the `anon` Postgres role even when signed in — a `to authenticated` policy
+-- would then deny every write. Gating on the cryptographically-verified `sub`
+-- (and is_admin(), which reads that sub) is the real security boundary and works
+-- regardless of the role claim. A request with no valid token has a null sub and
+-- matches nothing. Public reads stay open for signed-out browsing.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Cloud sync: one row per user holding their full app state as JSON.
@@ -30,11 +36,11 @@ alter table public.user_state drop constraint if exists user_state_user_id_fkey;
 alter table public.user_state alter column user_id type text using user_id::text;
 
 create policy "read own state" on public.user_state for select
-  to authenticated using ((auth.jwt() ->> 'sub') = user_id);
+  using ((auth.jwt() ->> 'sub') = user_id);
 create policy "insert own state" on public.user_state for insert
-  to authenticated with check ((auth.jwt() ->> 'sub') = user_id);
+  with check ((auth.jwt() ->> 'sub') = user_id);
 create policy "update own state" on public.user_state for update
-  to authenticated using ((auth.jwt() ->> 'sub') = user_id);
+  using ((auth.jwt() ->> 'sub') = user_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Profiles: one row per user, upserted app-side on first Clerk sign-in (the old
@@ -76,13 +82,13 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 create policy "read own profile" on public.profiles for select
-  to authenticated using (user_id = (auth.jwt() ->> 'sub') or public.is_admin());
+  using (user_id = (auth.jwt() ->> 'sub') or public.is_admin());
 create policy "insert own profile" on public.profiles for insert
-  to authenticated with check (user_id = (auth.jwt() ->> 'sub'));
+  with check (user_id = (auth.jwt() ->> 'sub'));
 create policy "update own profile" on public.profiles for update
-  to authenticated using (user_id = (auth.jwt() ->> 'sub'));
+  using (user_id = (auth.jwt() ->> 'sub'));
 create policy "admin updates profiles" on public.profiles for update
-  to authenticated using (public.is_admin());
+  using (public.is_admin());
 
 -- Bootstrap the site owner with the 'owner' role tag so the admin UI + RLS
 -- writes are enabled for them. Requires the owner to have signed in once (which
@@ -274,10 +280,10 @@ create policy "read public or own shares" on public.shared_hauls for select
   using (public or owner_id = (auth.jwt() ->> 'sub'));
 drop policy if exists "insert own shares" on public.shared_hauls;
 create policy "insert own shares" on public.shared_hauls for insert
-  to authenticated with check (owner_id = (auth.jwt() ->> 'sub'));
+  with check (owner_id = (auth.jwt() ->> 'sub'));
 drop policy if exists "update own shares" on public.shared_hauls;
 create policy "update own shares" on public.shared_hauls for update
-  to authenticated using (owner_id = (auth.jwt() ->> 'sub'));
+  using (owner_id = (auth.jwt() ->> 'sub'));
 drop policy if exists "delete own shares" on public.shared_hauls;
 create policy "delete own shares" on public.shared_hauls for delete
-  to authenticated using (owner_id = (auth.jwt() ->> 'sub'));
+  using (owner_id = (auth.jwt() ->> 'sub'));
