@@ -242,3 +242,42 @@ drop policy if exists "admin updates catalog items" on public.catalog_items;
 create policy "admin updates catalog items" on public.catalog_items for update using (public.is_admin());
 drop policy if exists "admin deletes catalog items" on public.catalog_items;
 create policy "admin deletes catalog items" on public.catalog_items for delete using (public.is_admin());
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Shared hauls — a public snapshot of a user's haul, published from /hauls for
+-- sharing (short /haul/<slug> links, Discord/Twitter unfurl, copy-image). `data`
+-- is a self-contained array of item snapshots (title, price, qty, image, store,
+-- url) so viewers need none of the owner's other data. Totals are denormalized
+-- so the share page + OG image don't recompute. Anyone can read a public share
+-- (no sign-in); only the owner (Clerk sub) can publish/update/unpublish theirs.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.shared_hauls (
+  slug text primary key,
+  owner_id text not null,
+  owner_name text not null default 'Anonymous',
+  name text not null default 'Haul',
+  data jsonb not null default '[]'::jsonb,
+  total_cny numeric not null default 0,
+  unit_count int not null default 0,
+  weight_g int not null default 0,
+  public boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.shared_hauls enable row level security;
+create index if not exists shared_hauls_owner_idx on public.shared_hauls (owner_id);
+
+-- Public shares are readable by anyone (no `to authenticated`); private ones
+-- only by their owner. Writes are owner-only.
+drop policy if exists "read public or own shares" on public.shared_hauls;
+create policy "read public or own shares" on public.shared_hauls for select
+  using (public or owner_id = (auth.jwt() ->> 'sub'));
+drop policy if exists "insert own shares" on public.shared_hauls;
+create policy "insert own shares" on public.shared_hauls for insert
+  to authenticated with check (owner_id = (auth.jwt() ->> 'sub'));
+drop policy if exists "update own shares" on public.shared_hauls;
+create policy "update own shares" on public.shared_hauls for update
+  to authenticated using (owner_id = (auth.jwt() ->> 'sub'));
+drop policy if exists "delete own shares" on public.shared_hauls;
+create policy "delete own shares" on public.shared_hauls for delete
+  to authenticated using (owner_id = (auth.jwt() ->> 'sub'));

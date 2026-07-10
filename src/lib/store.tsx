@@ -9,6 +9,7 @@ import { useUser, useSession, useClerk } from "@clerk/nextjs";
 import { DEFAULT_AGENT_ID } from "./agents";
 import { withRef } from "./links";
 import { createClerkSupabaseClient, resolveSupabaseConfig, type SupabaseConfig } from "./supabase";
+import { makeShareSlug } from "./shareHaul";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
 import type { CatalogItem, Category } from "@/data/catalog";
@@ -140,6 +141,20 @@ export interface Haul {
   name: string;
   budgetCny: number | null;
   items: SavedItem[];
+  /** Slug of the published share (shared_hauls.slug) once this haul is shared. */
+  shareSlug?: string;
+  /** Whether the published share is publicly viewable. Mirrors shared_hauls.public. */
+  sharePublic?: boolean;
+}
+
+/** Per-unit parcel weight estimate (grams) — SavedItem carries no category, so hauls use a flat figure. */
+export const HAUL_UNIT_WEIGHT_G = 600;
+
+/** Item count, priced total (CNY), and estimated weight for a haul — shared by the card, share page, and OG image. */
+export function haulStats(items: SavedItem[]): { unitCount: number; totalCny: number; weightG: number } {
+  const unitCount = items.reduce((sum, i) => sum + i.qty, 0);
+  const totalCny = items.reduce((sum, i) => sum + (i.priceCny ?? 0) * i.qty, 0);
+  return { unitCount, totalCny, weightG: unitCount * HAUL_UNIT_WEIGHT_G };
 }
 
 function sanitizeItems(value: unknown): SavedItem[] {
@@ -177,6 +192,8 @@ function sanitizeHauls(value: unknown): Haul[] {
       name: r.name,
       budgetCny: typeof r.budgetCny === "number" ? r.budgetCny : null,
       items: sanitizeItems(r.items),
+      ...(typeof r.shareSlug === "string" ? { shareSlug: r.shareSlug } : {}),
+      ...(typeof r.sharePublic === "boolean" ? { sharePublic: r.sharePublic } : {}),
     });
   }
   return out;
@@ -309,6 +326,12 @@ interface Store {
   removeFromHaul: (haulId: string, itemId: string) => void;
   importCart: (items: SavedItem[]) => void;
   assignCartToHaul: (haulId: string) => void;
+  /** Publish a haul snapshot to shared_hauls (sign-in required); returns the share URL. */
+  shareHaul: (haulId: string) => Promise<string | null>;
+  /** Delete the published share and clear the haul's share slug. */
+  unshareHaul: (haulId: string) => Promise<void>;
+  /** Toggle a shared haul's public visibility. */
+  setHaulPublic: (haulId: string, next: boolean) => Promise<void>;
   allStores: StoreInfo[];
   library: string[];
   favStores: string[];
@@ -587,6 +610,87 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCart([]);
     },
     [cart],
+  );
+
+  const shareHaul = useCallback(
+    async (haulId: string): Promise<string | null> => {
+      if (!sb) {
+        toast("Sharing needs cloud sync, which isn't configured here", "error");
+        return null;
+      }
+      if (!user) {
+        toast("Sign in to share a haul", "info");
+        clerk.openSignIn();
+        return null;
+      }
+      const haul = hauls.find((h) => h.id === haulId);
+      if (!haul) return null;
+      if (haul.items.length === 0) {
+        toast("Add some items before sharing", "error");
+        return null;
+      }
+      const slug = haul.shareSlug ?? makeShareSlug();
+      const isPublic = haul.sharePublic ?? true;
+      const stats = haulStats(haul.items);
+      const { error } = await sb.from("shared_hauls").upsert(
+        {
+          slug,
+          owner_id: user.id,
+          owner_name: profileName ?? "Anonymous",
+          name: haul.name,
+          data: haul.items,
+          total_cny: stats.totalCny,
+          unit_count: stats.unitCount,
+          weight_g: stats.weightG,
+          public: isPublic,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "slug" },
+      );
+      if (error) {
+        toast("Couldn't publish the haul — try again", "error");
+        return null;
+      }
+      // Remember the slug so re-sharing updates the same link instead of minting a new one.
+      setHauls((prev) =>
+        prev.map((h) => (h.id === haulId ? { ...h, shareSlug: slug, sharePublic: isPublic } : h)),
+      );
+      return `${window.location.origin}/haul/${slug}`;
+    },
+    [sb, user, hauls, profileName, clerk, toast],
+  );
+
+  const unshareHaul = useCallback(
+    async (haulId: string) => {
+      const haul = hauls.find((h) => h.id === haulId);
+      if (!sb || !haul?.shareSlug) return;
+      await sb.from("shared_hauls").delete().eq("slug", haul.shareSlug);
+      setHauls((prev) =>
+        prev.map((h) =>
+          h.id === haulId ? { ...h, shareSlug: undefined, sharePublic: undefined } : h,
+        ),
+      );
+      toast("Haul unshared", "info");
+    },
+    [sb, hauls, toast],
+  );
+
+  const setHaulPublic = useCallback(
+    async (haulId: string, next: boolean) => {
+      const haul = hauls.find((h) => h.id === haulId);
+      if (!sb || !haul?.shareSlug) return;
+      const { error } = await sb
+        .from("shared_hauls")
+        .update({ public: next, updated_at: new Date().toISOString() })
+        .eq("slug", haul.shareSlug);
+      if (error) {
+        toast("Couldn't update visibility — try again", "error");
+        return;
+      }
+      setHauls((prev) => prev.map((h) => (h.id === haulId ? { ...h, sharePublic: next } : h)));
+      toast(next ? "Haul is public" : "Haul is private", "info");
+    },
+    [sb, hauls, toast],
   );
 
   const addToLibrary = useCallback((id: string) => {
@@ -878,6 +982,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromHaul,
       importCart,
       assignCartToHaul,
+      shareHaul,
+      unshareHaul,
+      setHaulPublic,
       allStores,
       library,
       favStores,
@@ -919,7 +1026,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       wishlist, toggleWishlist, cart, cartOpen,
       addToCart, setCartQty, removeFromCart, importCart, clearCart,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
-      removeFromHaul, assignCartToHaul, allStores, library, favStores,
+      removeFromHaul, assignCartToHaul, shareHaul, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, measurements, setMeasurements, toasts, toast,
       sb, user, profileName, syncStatus, lastSyncAt, setAuthOpen,

@@ -17,9 +17,13 @@ const clerk = "https://*.clerk.accounts.dev https://*.clerk.com";
 // Clerk's bot protection embeds Cloudflare Turnstile, which loads BOTH a script
 // and an iframe from this host — so it must be in script-src and frame-src.
 const turnstile = "https://challenges.cloudflare.com";
+// Next.js Fast Refresh (dev-only) evaluates code via eval(), which needs
+// 'unsafe-eval'. Production builds don't use it, so we keep prod strict and only
+// relax this for `next dev` — otherwise dev HMR is CSP-blocked and pages can't hydrate.
+const devEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${clerk} ${turnstile}`,
+  `script-src 'self' 'unsafe-inline'${devEval} ${clerk} ${turnstile}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

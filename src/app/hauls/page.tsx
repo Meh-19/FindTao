@@ -2,34 +2,43 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ImageOff, Pencil, Plus, X } from "lucide-react";
+import {
+  ExternalLink, Globe, ImageIcon, ImageOff, Loader2, Lock, Pencil, Plus, Share2, X,
+} from "lucide-react";
+import { SignInButton } from "@clerk/nextjs";
 import { CopyButton } from "@/components/CopyButton";
+import { HaulPreview } from "@/components/HaulPreview";
 import { formatMoney } from "@/lib/currency";
 import { parseLink, toAgentUrl } from "@/lib/links";
 import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { proxiedImg } from "@/lib/yupoo";
-import { useStore, type Haul } from "@/lib/store";
-
-/** Rough per-unit parcel weight until real item data exists. */
-const EST_UNIT_WEIGHT_G = 600;
+import { useStore, haulStats, HAUL_UNIT_WEIGHT_G, type Haul } from "@/lib/store";
 
 function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
     prefs, setPrefs, renameHaul, deleteHaul, setHaulBudget, removeFromHaul,
-    fmtConverted, toast, applyRef,
+    fmtConverted, toast, applyRef, shareHaul, unshareHaul, setHaulPublic, user, cloudEnabled,
   } = useStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(haul.name);
+  const [imgBusy, setImgBusy] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const agent = getAgent(prefs.agentId) ?? getAgent(DEFAULT_AGENT_ID)!;
   const items = haul.items;
-  const unitCount = items.reduce((sum, i) => sum + i.qty, 0);
-  const totalCny = items.reduce((sum, i) => sum + (i.priceCny ?? 0) * i.qty, 0);
+  const { unitCount, totalCny } = haulStats(items);
   const unpricedCount = items.filter((i) => i.priceCny === null).length;
-  const totalWeight = unitCount * EST_UNIT_WEIGHT_G;
+  const totalWeight = unitCount * HAUL_UNIT_WEIGHT_G;
   const active = prefs.activeHaulId === haul.id;
   const overBudget = haul.budgetCny !== null && totalCny > haul.budgetCny;
   const budgetPct = haul.budgetCny ? Math.min((totalCny / haul.budgetCny) * 100, 100) : 0;
+
+  const signedIn = cloudEnabled && !!user;
+  const shareUrl =
+    haul.shareSlug && typeof window !== "undefined"
+      ? `${window.location.origin}/haul/${haul.shareSlug}`
+      : null;
+  const isPublic = haul.sharePublic ?? true;
 
   const exportText = items
     .map((i) => {
@@ -45,6 +54,38 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
     setEditing(false);
   }
 
+  async function doShare() {
+    if (sharing) return;
+    setSharing(true);
+    const url = await shareHaul(haul.id);
+    setSharing(false);
+    if (url) toast("Share link ready — copy it below");
+  }
+
+  async function copyImage() {
+    if (imgBusy) return;
+    setImgBusy(true);
+    try {
+      let slug = haul.shareSlug;
+      if (!slug) {
+        const url = await shareHaul(haul.id);
+        if (!url) return;
+        slug = url.split("/haul/")[1];
+      }
+      const res = await fetch(`/haul/${slug}/opengraph-image`);
+      if (!res.ok) throw new Error("image fetch failed");
+      const blob = await res.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      toast("Haul image copied — paste it anywhere");
+    } catch {
+      toast("Couldn't copy the image — try the link instead", "error");
+    } finally {
+      setImgBusy(false);
+    }
+  }
+
+  const shareBtn = "flex items-center gap-1.5 rounded-none border border-ink-500 px-3 py-1.5 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60";
+
   return (
     <div
       id={`haul-${haul.id}`}
@@ -54,67 +95,73 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
     >
       {active && <div className="flow-bg h-0.5" />}
       <div className="p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          {editing ? (
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={saveName}
-              onKeyDown={(e) => e.key === "Enter" && saveName()}
-              className="rounded-none border border-neon-500 bg-ink-900 px-2 py-1 text-sm font-semibold text-mist-100 outline-none"
-            />
-          ) : (
-            <h2 className="text-base font-bold text-mist-100">{haul.name}</h2>
-          )}
-          <button onClick={() => setEditing(true)} aria-label="Rename haul" className="p-0.5 text-mist-500 hover:text-neon-300">
-            <Pencil size={13} aria-hidden="true" />
-          </button>
-          {active ? (
-            <span className="rounded-none border border-neon-400/30 bg-neon-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neon-300">
-              Active
-            </span>
-          ) : (
-            <button
-              onClick={() => { setPrefs({ activeHaulId: haul.id }); toast(`${haul.name} is now the active haul`); }}
-              className="rounded-none border border-ink-500 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-mist-500 hover:text-neon-300"
-            >
-              Set active
-            </button>
-          )}
-          <button
-            onClick={() => { deleteHaul(haul.id); toast(`${haul.name} deleted`, "info"); }}
-            className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
-          >
-            Delete
-          </button>
-        </div>
+        <div className="flex gap-4">
+          <HaulPreview
+            items={items}
+            className="h-20 w-20 shrink-0 rounded-none border border-white/5"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {editing ? (
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={saveName}
+                  onKeyDown={(e) => e.key === "Enter" && saveName()}
+                  className="rounded-none border border-neon-500 bg-ink-900 px-2 py-1 text-sm font-semibold text-mist-100 outline-none"
+                />
+              ) : (
+                <h2 className="text-base font-bold text-mist-100">{haul.name}</h2>
+              )}
+              <button onClick={() => setEditing(true)} aria-label="Rename haul" className="p-0.5 text-mist-500 hover:text-neon-300">
+                <Pencil size={13} aria-hidden="true" />
+              </button>
+              {active ? (
+                <span className="rounded-none border border-neon-400/30 bg-neon-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neon-300">
+                  Active
+                </span>
+              ) : (
+                <button
+                  onClick={() => { setPrefs({ activeHaulId: haul.id }); toast(`${haul.name} is now the active haul`); }}
+                  className="rounded-none border border-ink-500 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-mist-500 hover:text-neon-300"
+                >
+                  Set active
+                </button>
+              )}
+              <button
+                onClick={() => { deleteHaul(haul.id); toast(`${haul.name} deleted`, "info"); }}
+                className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
+              >
+                Delete
+              </button>
+            </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-mist-400">
-          <span>
-            {unitCount} item{unitCount === 1 ? "" : "s"} ·{" "}
-            <span className="font-semibold text-mist-100">{formatMoney(totalCny, "CNY")}</span>{" "}
-            <span className="flow-text font-bold">≈ {fmtConverted(totalCny)}</span>
-            {unpricedCount > 0 && (
-              <span className="text-mist-500"> +{unpricedCount} unpriced</span>
-            )}
-          </span>
-          <span>~{(totalWeight / 1000).toFixed(1)} kg est.</span>
-          <label className="ml-auto flex items-center gap-1.5">
-            Budget ¥
-            <input
-              type="number"
-              min={0}
-              value={haul.budgetCny ?? ""}
-              placeholder="—"
-              onChange={(e) => setHaulBudget(haul.id, e.target.value === "" ? null : Number(e.target.value))}
-              className="w-20 rounded-none border border-ink-500 bg-ink-900 px-2 py-1 text-xs text-mist-100 outline-none focus:border-neon-500"
-            />
-          </label>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mist-400">
+              <span>
+                {unitCount} item{unitCount === 1 ? "" : "s"} ·{" "}
+                <span className="font-semibold text-mist-100">{formatMoney(totalCny, "CNY")}</span>{" "}
+                <span className="flow-text font-bold">≈ {fmtConverted(totalCny)}</span>
+                {unpricedCount > 0 && <span className="text-mist-500"> +{unpricedCount} unpriced</span>}
+              </span>
+              {unitCount > 0 && <span>~{(totalWeight / 1000).toFixed(1)} kg est.</span>}
+              <label className="ml-auto flex items-center gap-1.5">
+                Budget ¥
+                <input
+                  type="number"
+                  min={0}
+                  value={haul.budgetCny ?? ""}
+                  placeholder="—"
+                  onChange={(e) => setHaulBudget(haul.id, e.target.value === "" ? null : Number(e.target.value))}
+                  className="w-20 rounded-none border border-ink-500 bg-ink-900 px-2 py-1 text-xs text-mist-100 outline-none focus:border-neon-500"
+                />
+              </label>
+            </div>
+          </div>
         </div>
 
         {haul.budgetCny !== null && (
-          <div className="mt-2">
+          <div className="mt-3">
             <div className="h-1.5 overflow-hidden rounded-none bg-ink-600">
               <div
                 className={overBudget ? "h-full bg-red-500" : "flow-bg h-full"}
@@ -128,6 +175,64 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
             </p>
           </div>
         )}
+
+        {/* Share bar */}
+        <div className="mt-4 border-t border-white/5 pt-3">
+          {shareUrl ? (
+            <div className="space-y-2">
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={shareUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-2.5 py-1.5 font-mono text-[11px] text-mist-300 outline-none"
+                />
+                <CopyButton text={shareUrl} label="Copy" className="shrink-0 px-3 py-1.5 text-xs" />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={copyImage} disabled={imgBusy} className={shareBtn}>
+                  {imgBusy ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <ImageIcon size={13} aria-hidden="true" />}
+                  Copy image
+                </button>
+                <button
+                  onClick={() => setHaulPublic(haul.id, !isPublic)}
+                  className={shareBtn}
+                  title={isPublic ? "Anyone with the link can view" : "Only you can view"}
+                >
+                  {isPublic ? <Globe size={13} aria-hidden="true" /> : <Lock size={13} aria-hidden="true" />}
+                  {isPublic ? "Public" : "Private"}
+                </button>
+                <a href={shareUrl} target="_blank" rel="noopener noreferrer" className={shareBtn}>
+                  <ExternalLink size={13} aria-hidden="true" /> Open
+                </a>
+                <button
+                  onClick={() => unshareHaul(haul.id)}
+                  className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
+                >
+                  Unshare
+                </button>
+              </div>
+            </div>
+          ) : signedIn ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={doShare} disabled={sharing || items.length === 0} className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                {sharing ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Share2 size={13} aria-hidden="true" />}
+                Share haul
+              </button>
+              <button onClick={copyImage} disabled={imgBusy || items.length === 0} className={shareBtn}>
+                {imgBusy ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <ImageIcon size={13} aria-hidden="true" />}
+                Copy image
+              </button>
+              {items.length === 0 && <span className="text-[11px] text-mist-500">Add items to share this haul.</span>}
+            </div>
+          ) : (
+            <SignInButton mode="modal">
+              <button className="btn-glow flex items-center gap-1.5 rounded-none px-4 py-2 text-xs font-semibold text-white">
+                <Share2 size={13} aria-hidden="true" /> Sign in to share
+              </button>
+            </SignInButton>
+          )}
+        </div>
 
         {items.length > 0 && (
           <div className="mt-4 space-y-2">
@@ -208,8 +313,8 @@ function HaulsView() {
           Your <span className="flow-text">hauls</span>
         </h1>
         <p className="mt-1 text-sm text-mist-400">
-          Group finds, set budgets, and export agent links per haul. Cart items land in the active
-          haul.
+          Group finds, set budgets, and share a haul as a link or an image. Cart items land in the
+          active haul.
         </p>
       </div>
 
