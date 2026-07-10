@@ -1,30 +1,48 @@
 -- FindTao schema — cloud sync, profiles/roles, store directory, and tag definitions.
 -- Idempotent: run the whole file in the Supabase dashboard → SQL Editor any time
 -- it changes (or `supabase db push`).
+--
+-- AUTH: identity comes from Clerk via the native Supabase third-party-auth
+-- integration, not Supabase Auth. Clerk user ids are strings, so id columns are
+-- `text` and RLS is keyed on the Clerk `sub` claim: (auth.jwt() ->> 'sub'). The
+-- integration also injects a `role: authenticated` claim, which is why per-user
+-- policies below are scoped `to authenticated`. BEFORE this works, add Clerk as a
+-- provider under Supabase → Authentication → Sign In / Providers (paste your
+-- Clerk domain). Public reads stay open to the anon role for signed-out browsing.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Cloud sync: one row per user holding their full app state as JSON.
+-- user_id is the Clerk user id (text).
 -- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.user_state (
-  user_id uuid primary key references auth.users (id) on delete cascade,
+  user_id text primary key,
   data jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
 alter table public.user_state enable row level security;
 
+-- Migrate a pre-Clerk table (uuid user_id + FK to auth.users) in place. Policies
+-- are dropped first so retyping the column can't break their old expressions.
 drop policy if exists "read own state" on public.user_state;
-create policy "read own state" on public.user_state for select using (auth.uid() = user_id);
 drop policy if exists "insert own state" on public.user_state;
-create policy "insert own state" on public.user_state for insert with check (auth.uid() = user_id);
 drop policy if exists "update own state" on public.user_state;
-create policy "update own state" on public.user_state for update using (auth.uid() = user_id);
+alter table public.user_state drop constraint if exists user_state_user_id_fkey;
+alter table public.user_state alter column user_id type text using user_id::text;
+
+create policy "read own state" on public.user_state for select
+  to authenticated using ((auth.jwt() ->> 'sub') = user_id);
+create policy "insert own state" on public.user_state for insert
+  to authenticated with check ((auth.jwt() ->> 'sub') = user_id);
+create policy "update own state" on public.user_state for update
+  to authenticated using ((auth.jwt() ->> 'sub') = user_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Profiles: one row per user, created automatically on signup. `tags` holds
--- role-style labels (owner, admin, beta, …) assigned from the dev panel.
+-- Profiles: one row per user, upserted app-side on first Clerk sign-in (the old
+-- auth.users signup trigger no longer applies). `tags` holds role-style labels
+-- (owner, admin, beta, …) assigned from the dev panel. user_id is the Clerk id.
 -- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.profiles (
-  user_id uuid primary key references auth.users (id) on delete cascade,
+  user_id text primary key,
   email text,
   username text,
   tags text[] not null default '{}',
@@ -33,52 +51,47 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists username text;
 alter table public.profiles enable row level security;
 
-create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  insert into public.profiles (user_id, email, username)
-  values (new.id, new.email, new.raw_user_meta_data ->> 'username')
-  on conflict (user_id) do nothing;
-  return new;
-end $$;
-
+-- Remove the Supabase-Auth signup trigger + function (Clerk users never hit
+-- auth.users, so it can't fire; profile rows are upserted by the app instead).
 drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+drop function if exists public.handle_new_user();
 
--- Backfill profiles for anyone who signed up before this table existed.
-insert into public.profiles (user_id, email)
-select id, email from auth.users
-on conflict (user_id) do nothing;
+-- Migrate a pre-Clerk profiles table in place (drop policies first, then retype).
+drop policy if exists "read own profile" on public.profiles;
+drop policy if exists "insert own profile" on public.profiles;
+drop policy if exists "update own profile" on public.profiles;
+drop policy if exists "admin updates profiles" on public.profiles;
+alter table public.profiles drop constraint if exists profiles_user_id_fkey;
+alter table public.profiles alter column user_id type text using user_id::text;
 
--- Bootstrap the site owner with the 'owner' role tag so the admin UI shows up
--- for them without the email ever being shipped to the client bundle (the
--- client gates the /dev UI on these tags alone). is_admin() below still grants
--- this email admin at the RLS layer regardless, so this only affects UI
--- visibility. Change the email here if the owner ever changes.
+-- Admin check: an 'admin' or 'owner' tag on the caller's own profile. security
+-- definer so RLS policies can call it. Keyed on the Clerk `sub` claim.
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select tags && array['admin','owner'] from public.profiles
+       where user_id = (auth.jwt() ->> 'sub')),
+    false
+  )
+$$;
+
+create policy "read own profile" on public.profiles for select
+  to authenticated using (user_id = (auth.jwt() ->> 'sub') or public.is_admin());
+create policy "insert own profile" on public.profiles for insert
+  to authenticated with check (user_id = (auth.jwt() ->> 'sub'));
+create policy "update own profile" on public.profiles for update
+  to authenticated using (user_id = (auth.jwt() ->> 'sub'));
+create policy "admin updates profiles" on public.profiles for update
+  to authenticated using (public.is_admin());
+
+-- Bootstrap the site owner with the 'owner' role tag so the admin UI + RLS
+-- writes are enabled for them. Requires the owner to have signed in once (which
+-- creates their profile row and populates email from their Clerk account);
+-- re-run this file after that first sign-in. Change the email if the owner does.
 update public.profiles
   set tags = array['owner']
   where email = 'ren.tipton@icloud.com'
     and not (tags && array['owner', 'admin']);
-
--- Admin check: the owner email is always admin; otherwise the profile needs
--- an 'admin' or 'owner' tag. security definer so RLS policies can call it.
-create or replace function public.is_admin()
-returns boolean language sql stable security definer set search_path = public as $$
-  select (auth.jwt() ->> 'email') = 'ren.tipton@icloud.com'
-    or coalesce(
-      (select tags && array['admin','owner'] from public.profiles where user_id = auth.uid()),
-      false
-    )
-$$;
-
-drop policy if exists "read own profile" on public.profiles;
-create policy "read own profile" on public.profiles for select
-  using (user_id = auth.uid() or public.is_admin());
-drop policy if exists "admin updates profiles" on public.profiles;
-create policy "admin updates profiles" on public.profiles for update
-  using (public.is_admin());
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Tag definitions — Discord-role-style labels, creatable from the dev panel.

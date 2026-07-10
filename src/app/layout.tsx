@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { Nav } from "@/components/Nav";
-import { AuthModal } from "@/components/AuthModal";
 import { CartPanel } from "@/components/CartPanel";
 import { Topbar, StatusBar, BottomNav, Toasts } from "@/components/Chrome";
 
@@ -34,7 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div className="flow-bg fixed inset-x-0 top-0 z-50 h-0.5" />
-        <StoreProvider>
+        <ClerkProvider appearance={{ theme: dark }}>
+          <StoreProvider>
           <div className="min-h-screen md:flex">
             <Nav />
             <div className="min-w-0 flex-1 pb-14 md:pb-8">
@@ -60,11 +62,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
           <CartPanel />
-          <AuthModal />
           <Toasts />
           <StatusBar />
           <BottomNav />
-        </StoreProvider>
+          </StoreProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

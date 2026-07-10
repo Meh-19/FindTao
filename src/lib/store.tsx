@@ -5,9 +5,10 @@ import type { ReactNode } from "react";
 import type { Currency, RateTable } from "./currency";
 import { FALLBACK_RATES, convertCny, formatCnyWith, formatMoney } from "./currency";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { useUser, useSession, useClerk } from "@clerk/nextjs";
 import { DEFAULT_AGENT_ID } from "./agents";
 import { withRef } from "./links";
-import { resolveSupabase } from "./supabase";
+import { createClerkSupabaseClient, resolveSupabaseConfig, type SupabaseConfig } from "./supabase";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
 import type { CatalogItem, Category } from "@/data/catalog";
@@ -333,12 +334,8 @@ interface Store {
   profileName: string | null;
   syncStatus: SyncStatus;
   lastSyncAt: number | null;
-  authOpen: boolean;
+  /** Opens the Clerk sign-in modal (kept as a stable name so nav/settings triggers are unchanged). */
   setAuthOpen: (open: boolean) => void;
-  signInWithEmail: (email: string, username: string) => Promise<boolean>;
-  signInWithPassword: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string, username: string, agentId?: string) => Promise<boolean>;
-  updatePassword: (password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
   /** Site-default referral fragments per agent id, set from the dev panel. */
@@ -380,29 +377,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CloudUser | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
-  const [sb, setSb] = useState<SupabaseClient | null>(null);
   const [directory, setDirectory] = useState<StoreInfo[]>([]);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [tagDefs, setTagDefs] = useState<TagDef[]>([]);
   const [profileTags, setProfileTags] = useState<string[]>([]);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [agentRefs, setAgentRefs] = useState<Record<string, string>>({});
-  const [authOpen, setAuthOpen] = useState(false);
   // Blocks pushes until the initial pull after sign-in finishes, so local
   // defaults never clobber the cloud copy.
   const pulledRef = useRef(false);
 
-  // Resolve the Supabase client — from build-time env or the /api/env
-  // runtime fallback. Stays null (local-only mode) when neither has keys.
+  // Clerk is the identity layer; Supabase is the database, authorized by the
+  // Clerk session token (see createClerkSupabaseClient). The session lives in a
+  // ref so the Supabase client (built once per config) always reads the latest
+  // token in its accessToken callback without being rebuilt on every change.
+  const clerk = useClerk();
+  const { user: clerkUser, isLoaded: userLoaded } = useUser();
+  const { session } = useSession();
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  // Resolve Supabase config (build-time env or the /api/env runtime fallback);
+  // stays null (local-only mode) when neither has keys.
+  const [config, setConfig] = useState<SupabaseConfig | null | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
-    resolveSupabase().then((client) => {
-      if (!cancelled) setSb(client);
+    resolveSupabaseConfig().then((c) => {
+      if (!cancelled) setConfig(c);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const sb = useMemo<SupabaseClient | null>(
+    () =>
+      config
+        ? createClerkSupabaseClient(config, () => sessionRef.current?.getToken() ?? Promise.resolve(null))
+        : null,
+    [config],
+  );
+
+  const setAuthOpen = useCallback(
+    (open: boolean) => {
+      if (open) clerk.openSignIn();
+    },
+    [clerk],
+  );
 
   useEffect(() => {
     setPrefsState({ ...DEFAULT_PREFS, ...read(K.prefs, {}) });
@@ -616,25 +639,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (s.measurements) setMeasurementsState(sanitizeMeasurements(s.measurements));
   }, []);
 
-  // Watch Supabase auth state. No-op in local-only mode.
+  // Identity comes from Clerk. Map its user onto our CloudUser shape; null when
+  // signed out. Waits for Clerk to finish loading so we don't briefly report
+  // "signed out" on refresh.
   useEffect(() => {
-    if (!sb) return;
-    const toCloudUser = (u: { id: string; email?: string | null; user_metadata?: Record<string, unknown> } | undefined): CloudUser | null =>
-      u
+    if (!userLoaded) return;
+    setUser(
+      clerkUser
         ? {
-            id: u.id,
-            email: u.email ?? null,
-            metaUsername: typeof u.user_metadata?.username === "string" ? (u.user_metadata.username as string) : null,
+            id: clerkUser.id,
+            email: clerkUser.primaryEmailAddress?.emailAddress ?? null,
+            metaUsername: clerkUser.username ?? clerkUser.firstName ?? null,
           }
-        : null;
-    sb.auth.getSession().then(({ data }) => {
-      setUser(toCloudUser(data.session?.user));
-    });
-    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
-      setUser(toCloudUser(session?.user));
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [sb]);
+        : null,
+    );
+  }, [clerkUser, userLoaded]);
 
   // Public store directory + tag definitions (no sign-in required to read).
   const refreshDirectory = useCallback(async () => {
@@ -680,13 +699,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Role tags + display name from the signed-in user's profile.
   //
-  // BUG FIX: accounts created via the magic-link (email OTP) flow never went
-  // through signUp(), so nothing ever wrote a profiles row — profileName
-  // stayed null forever and the account showed up as a bare email with no
-  // username, out of sync with password-created accounts. This now backfills
-  // the profiles row from the auth metadata username (captured at sign-in
-  // time, see toCloudUser above) whenever the row is missing or empty, so
-  // every account — password or magic-link — ends up with a real username.
+  // Clerk users don't exist in Supabase's auth.users, so the old DB trigger
+  // that created a profiles row on signup no longer fires — we create/refresh
+  // the row here on sign-in instead (keyed by the Clerk user id, with email so
+  // the owner bootstrap in schema.sql can match it). Then we read back the
+  // authoritative tags/username. The own-row insert/update RLS policy on
+  // profiles permits this; admin-assigned tags are preserved because upsert
+  // only patches the columns we send.
   useEffect(() => {
     if (!sb || !user) {
       setProfileTags([]);
@@ -694,29 +713,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    sb.from("profiles")
-      .select("tags, username")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (cancelled) return;
-        const tags = (data?.tags as string[] | undefined) ?? [];
-        const existingUsername = (data?.username as string | null | undefined) ?? null;
-        setProfileTags(tags);
-        if (existingUsername) {
-          setProfileName(existingUsername);
-          return;
-        }
-        if (!user.metaUsername) {
-          setProfileName(null);
-          return;
-        }
-        // No profiles row, or one with a blank username — backfill it now.
-        const { error } = await sb
-          .from("profiles")
-          .upsert({ user_id: user.id, username: user.metaUsername, tags });
-        if (!cancelled) setProfileName(error ? null : user.metaUsername);
-      });
+    (async () => {
+      const patch: Record<string, string> = { user_id: user.id };
+      if (user.email) patch.email = user.email;
+      if (user.metaUsername) patch.username = user.metaUsername;
+      await sb.from("profiles").upsert(patch, { onConflict: "user_id" });
+
+      const { data } = await sb
+        .from("profiles")
+        .select("tags, username")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setProfileTags((data?.tags as string[] | undefined) ?? []);
+      setProfileName((data?.username as string | null | undefined) ?? user.metaUsername ?? null);
+    })();
     return () => {
       cancelled = true;
     };
@@ -772,98 +783,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [sb, snapshot, user, hydrated]);
 
-  const signInWithEmail = useCallback(
-    // BUG FIX: magic-link sign-in used to create the account with no
-    // username at all (no `data` was ever passed to signInWithOtp), so
-    // magic-link accounts came out permanently blank/mismatched next to
-    // password accounts. Username is now required by the caller (AuthModal)
-    // and stamped into the same auth metadata signUp() uses, so the
-    // profiles-backfill effect above picks it up identically either way.
-    async (email: string, username: string) => {
-      if (!sb) return false;
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { data: { username }, emailRedirectTo: window.location.origin },
-      });
-      if (error) {
-        toast(error.message, "error");
-        return false;
-      }
-      toast("Check your email for the sign-in link", "info");
-      return true;
-    },
-    [sb, toast],
-  );
-
-  const signInWithPassword = useCallback(
-    async (email: string, password: string) => {
-      if (!sb) return false;
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) {
-        toast(error.message, "error");
-        return false;
-      }
-      toast("Signed in");
-      return true;
-    },
-    [sb, toast],
-  );
-
-  const signUp = useCallback(
-    async (email: string, password: string, username: string, agentId?: string) => {
-      if (!sb) return false;
-      const { data, error } = await sb.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { username },
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (error) {
-        toast(error.message, "error");
-        return false;
-      }
-      if (agentId) setPrefsState((prev) => ({ ...prev, agentId }));
-      if (data.session) toast(`Welcome, ${username}!`);
-      else toast("Account created — check your email to confirm, then sign in", "info");
-      return true;
-    },
-    [sb, toast],
-  );
-
   const applyRef = useCallback(
     (url: string | null, agentId: string) =>
       withRef(url, prefs.myRefs[agentId]?.trim() || agentRefs[agentId]),
     [prefs.myRefs, agentRefs],
   );
 
-  // BUG FIX: magic-link accounts previously had no way to ever set a
-  // password, permanently locking them out of password sign-in on another
-  // device. Safe to call any time while signed in — no plaintext password
-  // ever has to survive the email-redirect round trip.
-  const updatePassword = useCallback(
-    async (password: string) => {
-      if (!sb || !user) return false;
-      const { error } = await sb.auth.updateUser({ password });
-      if (error) {
-        toast(error.message, "error");
-        return false;
-      }
-      toast("Password set");
-      return true;
-    },
-    [sb, user, toast],
-  );
-
+  // Sign-in, sign-up, and password management are all handled by Clerk's UI
+  // (openSignIn / UserButton). Here we only wrap Clerk's signOut to also reset
+  // sync state so the next sign-in re-pulls cleanly.
   const signOut = useCallback(async () => {
-    if (!sb) return;
-    await sb.auth.signOut();
+    await clerk.signOut();
     pulledRef.current = false;
     setSyncStatus("idle");
     setLastSyncAt(null);
     toast("Signed out — your data stays on this device", "info");
-  }, [sb, toast]);
+  }, [clerk, toast]);
 
   const syncNow = useCallback(async () => {
     if (!sb || !user) return;
@@ -964,12 +899,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       profileName,
       syncStatus,
       lastSyncAt,
-      authOpen,
       setAuthOpen,
-      signInWithEmail,
-      signInWithPassword,
-      signUp,
-      updatePassword,
       signOut,
       syncNow,
       agentRefs,
@@ -992,8 +922,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromHaul, assignCartToHaul, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, measurements, setMeasurements, toasts, toast,
-      sb, user, profileName, syncStatus, lastSyncAt, authOpen,
-      signInWithEmail, signInWithPassword, signUp, updatePassword, signOut, syncNow,
+      sb, user, profileName, syncStatus, lastSyncAt, setAuthOpen,
+      signOut, syncNow,
       agentRefs, refreshAgentRefs, applyRef,
       directory, refreshDirectory, catalogItems, refreshCatalogItems, tagDefs, refreshTagDefs, profileTags, isAdmin,
     ],

@@ -7,13 +7,22 @@ import type { NextConfig } from "next";
 // client, so those are allowed over https. script/style keep 'unsafe-inline'
 // because Next's App Router injects inline hydration scripts and there's no
 // nonce middleware here; React's default escaping is the primary XSS defense.
+//
+// Clerk (auth) loads its client SDK, a web worker, and sign-in frames from its
+// own domains, so those are allowlisted in script-src/worker-src/frame-src.
+// connect-src/img-src already allow all https, covering Clerk's Frontend API and
+// avatar CDN. For a production Clerk instance on a custom domain, add that
+// domain to script-src and frame-src.
+const clerk = "https://*.clerk.accounts.dev https://*.clerk.com";
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' ${clerk}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https:",
+  "worker-src 'self' blob:",
+  `frame-src 'self' ${clerk} https://challenges.cloudflare.com`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

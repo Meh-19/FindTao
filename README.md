@@ -43,23 +43,31 @@ Agent URL formats in `src/lib/agents.ts` are best-effort and drift over time. Fo
 3. `npm test` — the round-trip test catches templates the parser can't read back.
 4. When you get affiliate codes, set the `ref` field per agent.
 
-## Auth & cloud sync (Supabase)
+## Auth (Clerk) & cloud sync (Supabase)
 
-Sign-in (email magic link) and cross-device sync of hauls, library, cart, and settings run on
-Supabase. Without keys the app runs in local-only mode — everything stays in localStorage and
-the header shows "Local mode".
+Authentication is handled by **Clerk**; **Supabase** is the database for cross-device sync
+(hauls, library, cart, settings, measurements) and the shared store directory/catalog/reviews.
+Sign-in is optional — without it the app runs in local-only mode (everything in localStorage,
+header shows "Local mode").
 
-1. Create a free project at [supabase.com](https://supabase.com/dashboard).
-2. In the dashboard, open **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql)
-   (creates the `user_state` table with row-level security).
-3. Copy `.env.example` to `.env.local` and fill in **Project Settings → API**:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Restart the dev server. Sign in from **Settings**; sync is automatic (debounced on every
-   change) with a manual **Sync now** button.
+**Clerk** authorizes Supabase via the native third-party-auth integration: Clerk issues a
+session token, the Supabase client passes it, and RLS trusts the Clerk user id (`auth.jwt()->>'sub'`).
 
-Under **Authentication → URL Configuration**, add your production URL (and
-`http://localhost:3000`) to the redirect allow-list so magic links land back in the app.
+1. **Clerk:** this project is linked to a Clerk app via the Clerk CLI (`clerk init`), which wrote
+   development `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` into `.env.local`. To set up
+   a fresh clone or your own app, run `npm i -g clerk && clerk auth login && clerk init`. For
+   production, add the production instance keys from [dashboard.clerk.com](https://dashboard.clerk.com)
+   and add your production Clerk domain to the CSP `script-src`/`frame-src` in `next.config.ts`.
+2. **Supabase:** create a free project at [supabase.com](https://supabase.com/dashboard) and copy
+   **Project Settings → API** into `.env.local` (`NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+3. **Connect them:** in the Supabase dashboard go to **Authentication → Sign In / Providers → add
+   Clerk**, and paste your Clerk domain (from the Clerk dashboard's Supabase integration page).
+4. **Schema:** open Supabase **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql)
+   (Clerk-keyed tables + row-level security).
+5. Restart the dev server. Sign in from **Settings** (or the nav); sync is automatic (debounced)
+   with a manual **Sync now** button. To grant yourself admin, sign in once, then re-run
+   `schema.sql` — its owner-bootstrap tags your profile by email.
 
 ## Deploy on Railway
 

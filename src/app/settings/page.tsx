@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { CloudUpload, KeyRound, LogOut } from "lucide-react";
+import { CloudUpload, LogOut } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { CURRENCIES, type Currency } from "@/lib/currency";
 import { useStore, ACCENTS, type AccentId, type CardSize } from "@/lib/store";
@@ -22,45 +22,6 @@ function Section({ title, blurb, children }: { title: string; blurb: string; chi
       <p className="mt-0.5 text-xs text-mist-500">{blurb}</p>
       {children}
     </div>
-  );
-}
-
-function SetPasswordForm() {
-  const { updatePassword, toast } = useStore();
-  const [pw, setPw] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <form
-      className="mt-3 flex gap-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (pw.length < 6 || busy) {
-          if (pw.length > 0 && pw.length < 6) toast("Password needs at least 6 characters", "error");
-          return;
-        }
-        setBusy(true);
-        const ok = await updatePassword(pw);
-        setBusy(false);
-        if (ok) setPw("");
-      }}
-    >
-      <input
-        type="password"
-        autoComplete="new-password"
-        value={pw}
-        onChange={(e) => setPw(e.target.value)}
-        placeholder="New password (min 6 chars)"
-        className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
-      />
-      <button
-        type="submit"
-        disabled={busy}
-        className="flex shrink-0 items-center gap-1.5 rounded-none border border-ink-500 px-3 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <KeyRound size={14} aria-hidden="true" /> Set
-      </button>
-    </form>
   );
 }
 
@@ -148,15 +109,13 @@ function AccountSection() {
         </button>
       </div>
 
-      {/* BUG FIX: accounts created via the email sign-in link had no way to
-          ever get a password, so they were stuck signing in from email only
-          on every device. This lets any signed-in account add or change one. */}
-      <div className="mt-4 border-t border-white/5 pt-4">
-        <p className="text-xs font-medium text-mist-300">Password</p>
-        <p className="mt-0.5 text-xs text-mist-500">
-          Signed in with an email link and want password sign-in too? Set one here.
+      {/* Email, password, connected accounts, and security are all managed in
+          Clerk's account menu. */}
+      <div className="mt-4 flex items-center gap-3 border-t border-white/5 pt-4">
+        <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} />
+        <p className="text-xs text-mist-500">
+          Manage your email, password, and security in the account menu.
         </p>
-        <SetPasswordForm />
       </div>
     </div>
   );
