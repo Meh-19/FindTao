@@ -6,6 +6,7 @@ import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { Nav } from "@/components/Nav";
 import { CartPanel } from "@/components/CartPanel";
+import { Onboarding } from "@/components/Onboarding";
 import { Topbar, StatusBar, BottomNav, Toasts } from "@/components/Chrome";
 
 // `||` (not `??`) so an empty build arg — e.g. NEXT_PUBLIC_SITE_URL declared in
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
           <CartPanel />
+          <Onboarding />
           <Toasts />
           <StatusBar />
           <BottomNav />
