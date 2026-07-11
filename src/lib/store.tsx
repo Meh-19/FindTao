@@ -237,6 +237,24 @@ function sanitizeMeasurements(value: unknown): Measurements {
   };
 }
 
+function sanitizePriceOverrides(value: unknown): Record<string, number> {
+  if (typeof value !== "object" || value === null) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[k] = v;
+  }
+  return out;
+}
+
+function sanitizeStoreSeen(value: unknown): Record<string, string[]> {
+  if (typeof value !== "object" || value === null) return {};
+  const out: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string");
+  }
+  return out;
+}
+
 export interface TrackedPkg {
   number: string;
   carrier: string;
@@ -271,6 +289,10 @@ interface CloudSnapshot {
   userStores: StoreInfo[];
   tracking: TrackedPkg[];
   measurements: Measurements;
+  /** Manual CNY price per album cart id (`album:{host}:{yupooId}`) when the listing didn't parse one. */
+  priceOverrides: Record<string, number>;
+  /** Yupoo album ids the user has already seen per store id — powers "new release" badges. */
+  storeSeen: Record<string, string[]>;
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -296,6 +318,8 @@ const K = {
   userStores: "findtao:userstores",
   tracking: "findtao:tracking",
   measurements: "findtao:measurements",
+  priceOverrides: "findtao:priceoverrides",
+  storeSeen: "findtao:storeseen",
   fx: "findtao:fx",
 };
 
@@ -359,6 +383,12 @@ interface Store {
   /** Body measurements + fit preference for the AI Advisor — persisted like everything else. */
   measurements: Measurements;
   setMeasurements: (update: Partial<Measurements>) => void;
+  /** Manual CNY price per album cart id, for listings that didn't parse a price. */
+  priceOverrides: Record<string, number>;
+  setPriceOverride: (id: string, price: number | null) => void;
+  /** Yupoo album ids the user has seen per store id (drives "new release" flags). */
+  storeSeen: Record<string, string[]>;
+  markStoreSeen: (storeId: string, ids: string[]) => void;
   toasts: Toast[];
   toast: (msg: string, type?: Toast["type"]) => void;
   /** False when Supabase config is unavailable — sign-in is disabled. */
@@ -408,6 +438,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [userStores, setUserStores] = useState<StoreInfo[]>([]);
   const [tracking, setTracking] = useState<TrackedPkg[]>([]);
   const [measurements, setMeasurementsState] = useState<Measurements>(EMPTY_MEASUREMENTS);
+  const [priceOverrides, setPriceOverridesState] = useState<Record<string, number>>({});
+  const [storeSeen, setStoreSeen] = useState<Record<string, string[]>>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
   const [user, setUser] = useState<CloudUser | null>(null);
@@ -474,6 +506,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUserStores(read(K.userStores, []));
     setTracking(read(K.tracking, []));
     setMeasurementsState(sanitizeMeasurements(read(K.measurements, EMPTY_MEASUREMENTS)));
+    setPriceOverridesState(sanitizePriceOverrides(read(K.priceOverrides, {})));
+    setStoreSeen(sanitizeStoreSeen(read(K.storeSeen, {})));
     setHydrated(true);
   }, []);
 
@@ -488,7 +522,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(K.userStores, JSON.stringify(userStores));
     window.localStorage.setItem(K.tracking, JSON.stringify(tracking));
     window.localStorage.setItem(K.measurements, JSON.stringify(measurements));
-  }, [hydrated, prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements]);
+    window.localStorage.setItem(K.priceOverrides, JSON.stringify(priceOverrides));
+    window.localStorage.setItem(K.storeSeen, JSON.stringify(storeSeen));
+  }, [hydrated, prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen]);
 
   // Live CNY rates, cached for 12h; FALLBACK_RATES until the fetch lands or on failure.
   useEffect(() => {
@@ -775,6 +811,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMeasurementsState((prev) => ({ ...prev, ...update }));
   }, []);
 
+  const setPriceOverride = useCallback((id: string, price: number | null) => {
+    setPriceOverridesState((prev) => {
+      const next = { ...prev };
+      if (price === null || !Number.isFinite(price) || price < 0) delete next[id];
+      else next[id] = price;
+      return next;
+    });
+  }, []);
+
+  const markStoreSeen = useCallback((storeId: string, ids: string[]) => {
+    if (!storeId || ids.length === 0) return;
+    setStoreSeen((prev) => {
+      const merged = new Set(prev[storeId] ?? []);
+      let changed = false;
+      for (const id of ids) if (!merged.has(id)) { merged.add(id); changed = true; }
+      return changed ? { ...prev, [storeId]: [...merged] } : prev;
+    });
+  }, []);
+
   const addTracking = useCallback((pkg: TrackedPkg) => {
     setTracking((prev) => [pkg, ...prev.filter((p) => p.number !== pkg.number)]);
   }, []);
@@ -784,12 +839,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const snapshot = useMemo<CloudSnapshot>(
-    () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements }),
-    [prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements],
+    () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen }),
+    [prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen],
   );
 
   const applySnapshot = useCallback((s: Partial<CloudSnapshot>) => {
     if (s.prefs) setPrefsState({ ...DEFAULT_PREFS, ...s.prefs });
+    if (s.priceOverrides) setPriceOverridesState(sanitizePriceOverrides(s.priceOverrides));
+    if (s.storeSeen) setStoreSeen(sanitizeStoreSeen(s.storeSeen));
     if (Array.isArray(s.wishlist)) setWishlist(s.wishlist);
     if (Array.isArray(s.cart)) setCart(sanitizeItems(s.cart));
     if (Array.isArray(s.hauls)) {
@@ -1060,6 +1117,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeTracking,
       measurements,
       setMeasurements,
+      priceOverrides,
+      setPriceOverride,
+      storeSeen,
+      markStoreSeen,
       toasts,
       toast,
       cloudEnabled: sb !== null,
@@ -1090,7 +1151,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
       removeFromHaul, assignCartToHaul, shareHaul, shareCart, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
-      tracking, addTracking, removeTracking, measurements, setMeasurements, toasts, toast,
+      tracking, addTracking, removeTracking, measurements, setMeasurements,
+      priceOverrides, setPriceOverride, storeSeen, markStoreSeen, toasts, toast,
       sb, user, profileName, syncStatus, lastSyncAt, setAuthOpen,
       signOut, syncNow,
       agentRefs, refreshAgentRefs, applyRef,

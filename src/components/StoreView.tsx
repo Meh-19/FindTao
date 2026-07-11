@@ -133,7 +133,7 @@ export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
     favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart, catalogItems,
-    inCart, activeHaul,
+    inCart, activeHaul, priceOverrides, setPriceOverride, storeSeen, markStoreSeen,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(catalogItems, id);
@@ -195,6 +195,55 @@ export function StoreView({ id }: { id: string }) {
   const liveMode = yupooHost !== null && !liveFailed;
   const albums = liveMode ? (liveAlbums ?? []) : platform.platform === "other" ? placeholderAlbums : [];
   const albumsLoading = liveMode && liveAlbums === null;
+
+  // "New release" tracking: on this visit, albums not seen before this store was
+  // last opened get a glowing ring that clears when the shopper hovers them.
+  const [unseenNew, setUnseenNew] = useState<Set<string>>(new Set());
+  const seenBaseline = useRef<Set<string> | null>(null); // frozen at first load, so live marking doesn't erase glow
+  const processedNew = useRef<Set<string>>(new Set());
+  // Editing a tile's price inline (one at a time).
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [priceDraft, setPriceDraft] = useState("");
+
+  useEffect(() => {
+    // Reset per-store when navigating between stores.
+    seenBaseline.current = null;
+    processedNew.current = new Set();
+    setUnseenNew(new Set());
+  }, [id]);
+
+  useEffect(() => {
+    if (!liveMode || albums.length === 0) return;
+    if (!seenBaseline.current) seenBaseline.current = new Set(storeSeen[id] ?? []);
+    const baseline = seenBaseline.current;
+    const currentIds: string[] = [];
+    const fresh: string[] = [];
+    for (const a of albums) {
+      currentIds.push(a.id);
+      if (!processedNew.current.has(a.id)) {
+        processedNew.current.add(a.id);
+        if (!baseline.has(a.id)) fresh.push(a.id);
+      }
+    }
+    if (fresh.length) setUnseenNew((prev) => new Set([...prev, ...fresh]));
+    markStoreSeen(id, currentIds); // mark all current as seen so the Library badge clears
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [albums, liveMode, id]);
+
+  function clearNew(albumId: string) {
+    if (!unseenNew.has(albumId)) return;
+    setUnseenNew((prev) => {
+      const next = new Set(prev);
+      next.delete(albumId);
+      return next;
+    });
+  }
+
+  function savePrice(cid: string) {
+    const v = priceDraft.trim();
+    setPriceOverride(cid, v === "" ? null : Number(v));
+    setEditingPriceId(null);
+  }
 
   // Real prices live in each album's description, not its title (see
   // AlbumModal) — pull them all in as the grid loads so quick-add uses the
@@ -387,23 +436,37 @@ export function StoreView({ id }: { id: string }) {
                 // guess until that fetch lands, or for placeholder albums
                 // that never get a description fetch at all.
                 const parsedPrice = album.id in albumPrices ? albumPrices[album.id] : parsePriceCnyDetailed(album.name);
-                const price = parsedPrice?.value ?? null;
+                const parsed = parsedPrice?.value ?? null;
                 // Quick-add only makes sense for live Yupoo albums — placeholder
                 // albums have no real yupooId/cover to attach a cart line to.
                 const canQuickAdd = Boolean(yupooHost && album.yupooId);
                 const cartId = canQuickAdd ? `album:${yupooHost}:${album.yupooId}` : null;
+                const override = cartId ? priceOverrides[cartId] : undefined;
+                const price = override ?? parsed; // effective price (manual override wins)
                 const inCartNow = !!cartId && inCart(cartId);
                 const inHaulNow = !!cartId && activeHaul.items.some((it) => it.id === cartId);
+                const isNew = unseenNew.has(album.id);
+                const isEditing = editingPriceId === album.id;
                 return (
                   <div
                     key={album.id}
-                    className={`card-pop fade-up group relative overflow-hidden rounded-none border bg-ink-800/80 ${
-                      inCartNow || inHaulNow ? "border-emerald-400/50" : "border-white/5"
-                    }`}
+                    onMouseEnter={() => clearNew(album.id)}
+                    className={`card-pop fade-up group relative overflow-hidden rounded-none border bg-ink-800/80 transition-shadow duration-500 ${
+                      inCartNow || inHaulNow
+                        ? "border-emerald-400/50"
+                        : isNew
+                          ? "border-neon-400/70"
+                          : "border-white/5"
+                    } ${isNew ? "shadow-[0_0_14px_rgba(139,92,246,0.55)]" : ""}`}
                     style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}
                   >
-                    {(inCartNow || inHaulNow) && (
+                    {(inCartNow || inHaulNow || isNew) && (
                       <div className="pointer-events-none absolute left-2 top-2 z-10 flex flex-col items-start gap-1">
+                        {isNew && (
+                          <span className="rounded-none border border-neon-400/70 bg-neon-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neon-200">
+                            New
+                          </span>
+                        )}
                         {inCartNow && (
                           <span className="flex items-center gap-1 rounded-none border border-emerald-400/50 bg-ink-950/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300">
                             <Check size={9} aria-hidden="true" /> In cart
@@ -446,43 +509,84 @@ export function StoreView({ id }: { id: string }) {
                         {price !== null ? (
                           <p className="mt-1.5 text-sm font-semibold tabular-nums text-mist-100">
                             {formatMoney(price, "CNY")}
-                            {parsedPrice?.estimate && (
+                            {override !== undefined ? (
+                              <span className="ml-1 font-mono text-[9px] font-normal uppercase tracking-wide text-neon-300">
+                                set
+                              </span>
+                            ) : parsedPrice?.estimate ? (
                               <span className="ml-1 font-mono text-[9px] font-normal uppercase tracking-wide text-mist-500">
                                 ¥ (est.)
                               </span>
-                            )}{" "}
+                            ) : null}{" "}
                             <span className="flow-text text-xs font-bold">≈ {fmtConverted(price)}</span>
                           </p>
                         ) : (
-                          <p className="mt-1.5 text-[11px] text-mist-500">Tap for details</p>
+                          <p className="mt-1.5 text-[11px] text-mist-500">
+                            {canQuickAdd ? "No price — tap ¥ to set" : "Tap for details"}
+                          </p>
                         )}
                       </div>
                     </button>
 
-                    {/* Quick add — hover-revealed on desktop, always shown on
-                        touch (no hover state) via opacity-100 md:opacity-0. */}
-                    {canQuickAdd && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addToCart({
-                            id: `album:${yupooHost}:${album.yupooId}`,
-                            title: album.name,
-                            priceCny: price,
-                            image: album.cover ?? null,
-                            imgHost: yupooHost,
-                            storeId: store!.id,
-                            storeName: store!.name,
-                            url: null,
-                          });
-                          toast(`Added ${album.name.slice(0, 40)} to cart`);
-                        }}
-                        aria-label={`Quick add ${album.name} to cart`}
-                        className="absolute right-2 top-2 flex items-center gap-1 rounded-none border border-white/15 bg-ink-950/90 px-2 py-1.5 text-white/90 opacity-100 shadow-hard-sm transition-all duration-150 hover:bg-ink-950 hover:text-white md:opacity-0 md:group-hover:opacity-100"
-                      >
-                        <ShoppingCart size={13} aria-hidden="true" />
-                      </button>
-                    )}
+                    {/* Set-price + quick-add — hover-revealed on desktop, always
+                        shown on touch (no hover state) via opacity-100 md:opacity-0. */}
+                    {canQuickAdd &&
+                      (isEditing ? (
+                        <div className="absolute right-2 top-2 z-20">
+                          <input
+                            autoFocus
+                            type="number"
+                            min={0}
+                            value={priceDraft}
+                            onChange={(e) => setPriceDraft(e.target.value)}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === "Enter") savePrice(cartId!);
+                              if (e.key === "Escape") setEditingPriceId(null);
+                            }}
+                            onBlur={() => savePrice(cartId!)}
+                            placeholder="¥ price"
+                            className="w-20 rounded-none border border-neon-500 bg-ink-950 px-1.5 py-1 text-xs text-mist-100 outline-none"
+                          />
+                        </div>
+                      ) : (
+                        <div className="absolute right-2 top-2 z-10 flex items-center gap-1 opacity-100 transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPriceDraft(price !== null ? String(price) : "");
+                              setEditingPriceId(album.id);
+                            }}
+                            aria-label={`Set price for ${album.name}`}
+                            title="Set price"
+                            className="flex items-center rounded-none border border-white/15 bg-ink-950/90 px-2 py-1.5 text-xs font-bold text-white/90 shadow-hard-sm transition-all duration-150 hover:bg-ink-950 hover:text-white"
+                          >
+                            ¥
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart({
+                                id: `album:${yupooHost}:${album.yupooId}`,
+                                title: album.name,
+                                priceCny: price,
+                                image: album.cover ?? null,
+                                imgHost: yupooHost,
+                                storeId: store!.id,
+                                storeName: store!.name,
+                                url: null,
+                              });
+                              toast(`Added ${album.name.slice(0, 40)} to cart`);
+                            }}
+                            aria-label={`Quick add ${album.name} to cart`}
+                            className="flex items-center gap-1 rounded-none border border-white/15 bg-ink-950/90 px-2 py-1.5 text-white/90 shadow-hard-sm transition-all duration-150 hover:bg-ink-950 hover:text-white"
+                          >
+                            <ShoppingCart size={13} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 );
               })}

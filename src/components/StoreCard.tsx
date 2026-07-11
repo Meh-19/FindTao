@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, Plus, Star } from "lucide-react";
 import type { StoreInfo } from "@/data/stores";
 import { storeItems } from "@/data/catalog";
 import { storeAlbums } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
+import { fetchAlbumIds } from "@/lib/albumIds";
 import { useStore } from "@/lib/store";
 
 export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: number }) {
-  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated, tagDefs, catalogItems } = useStore();
+  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated, tagDefs, catalogItems, storeSeen } = useStore();
   const storeTagDefs = tagDefs.filter((t) => t.kind === "store" && store.tags?.includes(t.name));
   const saved = hydrated && inLibrary(store.id);
   const fav = hydrated && favStores.includes(store.id);
@@ -24,8 +26,35 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
   const platform = detectStorePlatform(store.url);
   const albumCount = platform.platform === "yupoo" ? null : storeAlbums(store).length;
 
+  // "New releases": lazily (once the card scrolls into view) fetch the store's
+  // current album ids and count how many the user hasn't seen. Yupoo only.
+  const yupooHost = platform.platform === "yupoo" ? platform.yupooHost : undefined;
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [currentIds, setCurrentIds] = useState<string[] | null>(null);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!hydrated || !yupooHost || !el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          io.disconnect();
+          fetchAlbumIds(yupooHost).then(setCurrentIds);
+        }
+      },
+      { rootMargin: "250px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hydrated, yupooHost]);
+  const newCount = useMemo(() => {
+    if (!currentIds) return 0;
+    const seen = new Set(storeSeen[store.id] ?? []);
+    return currentIds.filter((id) => !seen.has(id)).length;
+  }, [currentIds, storeSeen, store.id]);
+
   return (
     <div
+      ref={cardRef}
       className="card-pop fade-up rounded-none border border-white/5 bg-ink-800/80 p-4"
       style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
     >
@@ -74,9 +103,19 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
       </div>
 
       <div className="mt-3 flex items-center justify-between text-xs text-mist-500">
-        <span>
-          {albumCount === null ? "Live on Yupoo" : `${albumCount} album${albumCount === 1 ? "" : "s"}`}
-          {itemCount > 0 && ` · ${itemCount} indexed`}
+        <span className="flex items-center gap-2">
+          <span>
+            {albumCount === null ? "Live on Yupoo" : `${albumCount} album${albumCount === 1 ? "" : "s"}`}
+            {itemCount > 0 && ` · ${itemCount} indexed`}
+          </span>
+          {newCount > 0 && (
+            <Link
+              href={`/store/${store.id}`}
+              className="rounded-none border border-neon-400/60 bg-neon-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neon-200 shadow-[0_0_8px_rgba(139,92,246,0.5)] transition-colors hover:bg-neon-500/30"
+            >
+              +{newCount} New!
+            </Link>
+          )}
         </span>
         <div className="flex gap-2">
           <Link

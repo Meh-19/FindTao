@@ -31,7 +31,7 @@ export function AlbumModal({
   host: string | null;
   onClose: () => void;
 }) {
-  const { addToCart, fmtConverted, toast } = useStore();
+  const { addToCart, fmtConverted, toast, priceOverrides } = useStore();
   const [viewer, setViewer] = useState<number | null>(null);
   const [qty, setQty] = useState(1);
   const live = Boolean(host && album.yupooId);
@@ -48,7 +48,9 @@ export function AlbumModal({
     () => parsePriceCnyDetailed(description ?? album.name),
     [description, album.name],
   );
-  const priceCny = parsedPrice?.value ?? null;
+  // A manual price set on the store tile (keyed by the album cart id) wins over the parsed one.
+  const override = live ? priceOverrides[`album:${host}:${album.yupooId}`] : undefined;
+  const priceCny = override ?? parsedPrice?.value ?? null;
 
   useEffect(() => {
     if (!live) return;
