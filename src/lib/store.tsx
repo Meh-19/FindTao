@@ -996,8 +996,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .eq("user_id", user.id)
         .maybeSingle();
       if (cancelled) return;
-      setProfileTags((data?.tags as string[] | undefined) ?? []);
+      let tags = (data?.tags as string[] | undefined) ?? [];
       setProfileName((data?.username as string | null | undefined) ?? user.metaUsername ?? null);
+
+      // Env-driven dev access: if the Railway DEV_EMAIL matches this account,
+      // the server route grants the 'owner' tag (see /api/dev/claim). Only ask
+      // when we're not already an admin, and reflect a fresh grant immediately.
+      if (!tags.includes("owner") && !tags.includes("admin")) {
+        try {
+          const res = await fetch("/api/dev/claim", { method: "POST" });
+          if (res.ok && ((await res.json()) as { granted?: boolean }).granted) {
+            tags = [...tags, "owner"];
+          }
+        } catch {
+          // network hiccup — stay non-admin, retried on next sign-in
+        }
+      }
+      if (cancelled) return;
+      setProfileTags(tags);
     })();
     return () => {
       cancelled = true;
