@@ -1,9 +1,8 @@
 import { ImageResponse } from "next/og";
-import { headers } from "next/headers";
 import { serverSupabase } from "@/lib/serverSupabase";
 import { sanitizeSharedItems, formatShared } from "@/lib/shareHaul";
 import { formatMoney } from "@/lib/currency";
-import { proxiedImg } from "@/lib/yupoo";
+import { inlineYupooImage, poolMap } from "@/lib/imageInline";
 
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
@@ -14,25 +13,10 @@ export const alt = "A shared FindTao haul";
 // every item lives at ./image; this stays a tidy summary.
 const MAX_TILES = 12;
 
-async function inline(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "image/jpeg";
-    const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
-    return `data:${type};base64,${b64}`;
-  } catch {
-    return null;
-  }
-}
-
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const sb = serverSupabase();
   const row = sb ? (await sb.from("shared_hauls").select("*").eq("slug", slug).maybeSingle()).data : null;
-
-  const h = await headers();
-  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? ""}`;
 
   const owner = (row?.owner_name as string) ?? "someone";
   const kind = row?.kind === "cart" ? "CART" : "HAUL";
@@ -45,7 +29,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
 
   const withImg = allItems.filter((i) => i.image && i.imgHost);
   const shown = withImg.slice(0, MAX_TILES);
-  const tiles = await Promise.all(shown.map((i) => inline(`${origin}${proxiedImg(i.image!, i.imgHost!)}`)));
+  const tiles = await poolMap(shown, 8, (i) => inlineYupooImage(i.image!, i.imgHost!));
   const more = allItems.length - shown.length;
   const accent = "#8b5cf6";
 

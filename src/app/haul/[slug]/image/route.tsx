@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { serverSupabase } from "@/lib/serverSupabase";
 import { sanitizeSharedItems, formatShared } from "@/lib/shareHaul";
 import { formatMoney } from "@/lib/currency";
-import { proxiedImg } from "@/lib/yupoo";
+import { inlineYupooImage, poolMap } from "@/lib/imageInline";
 
 export const runtime = "nodejs";
 
@@ -18,24 +18,11 @@ const TILE = Math.floor((WIDTH - PAD * 2 - GAP * (COLS - 1)) / COLS); // ~175
 const TEXT_H = 82;
 const HEADER_H = 150;
 
-async function inline(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "image/jpeg";
-    const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
-    return `data:${type};base64,${b64}`;
-  } catch {
-    return null;
-  }
-}
-
-export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const sb = serverSupabase();
   const row = sb ? (await sb.from("shared_hauls").select("*").eq("slug", slug).maybeSingle()).data : null;
 
-  const origin = new URL(req.url).origin;
   const owner = (row?.owner_name as string) ?? "someone";
   const kind = row?.kind === "cart" ? "CART" : "HAUL";
   const currency = (row?.currency as string) ?? "USD";
@@ -47,8 +34,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const more = allItems.length - items.length;
   const stores = [...new Set(allItems.map((i) => i.storeName).filter(Boolean))];
 
-  const tiles = await Promise.all(
-    items.map((i) => (i.image && i.imgHost ? inline(`${origin}${proxiedImg(i.image, i.imgHost)}`) : Promise.resolve(null))),
+  const tiles = await poolMap(items, 8, (i) =>
+    i.image && i.imgHost ? inlineYupooImage(i.image, i.imgHost) : Promise.resolve(null),
   );
 
   const rows = Math.ceil((items.length + (more > 0 ? 1 : 0)) / COLS) || 1;
