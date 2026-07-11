@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Heart } from "lucide-react";
+import { Eye, Heart } from "lucide-react";
 import { itemStore } from "@/data/catalog";
 import { ItemCard } from "@/components/ItemCard";
+import { LinkPreview } from "@/components/LinkPreview";
 import { parseLink } from "@/lib/links";
 import type { Marketplace } from "@/lib/links";
 import { useStore, type CardSize } from "@/lib/store";
@@ -40,6 +41,23 @@ function SearchView() {
   const [maxPrice, setMaxPrice] = useState(300);
 
   const pastedLink = useMemo(() => parseLink(query), [query]);
+
+  // Auto-open the product preview once per distinct pasted link (parseLink only
+  // resolves on a complete link, so this fires when a full URL lands, not on
+  // every keystroke). Closing it doesn't re-pop until a different link is typed.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const lastAutoKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pastedLink) {
+      lastAutoKey.current = null;
+      return;
+    }
+    const key = `${pastedLink.marketplace}:${pastedLink.itemId}`;
+    if (lastAutoKey.current !== key) {
+      lastAutoKey.current = key;
+      setPreviewOpen(true);
+    }
+  }, [pastedLink]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -88,12 +106,25 @@ function SearchView() {
       </div>
 
       {pastedLink && (
-        <button
-          onClick={() => router.push(`/convert?link=${encodeURIComponent(query.trim())}`)}
-          className="fade-up mb-4 block w-full rounded-none border border-neon-500/40 bg-neon-600/15 px-4 py-3 text-left text-sm text-neon-300 transition-colors hover:bg-neon-600/25"
-        >
-          That looks like a {pastedLink.marketplace} link — open it in the converter →
-        </button>
+        <div className="fade-up mb-4 flex flex-wrap items-center gap-2 rounded-none border border-neon-500/40 bg-neon-600/15 px-4 py-3 text-sm text-neon-300">
+          <span className="flex-1">That looks like a {pastedLink.marketplace} link.</span>
+          <button
+            onClick={() => setPreviewOpen(true)}
+            className="flex items-center gap-1.5 rounded-none border border-neon-500/50 px-3 py-1.5 font-semibold transition-colors hover:bg-neon-600/25"
+          >
+            <Eye size={13} aria-hidden="true" /> Preview
+          </button>
+          <button
+            onClick={() => router.push(`/convert?link=${encodeURIComponent(query.trim())}`)}
+            className="rounded-none px-3 py-1.5 font-medium underline decoration-neon-500/50 underline-offset-2 transition-colors hover:text-neon-200"
+          >
+            Open in converter →
+          </button>
+        </div>
+      )}
+
+      {pastedLink && previewOpen && (
+        <LinkPreview link={pastedLink} onClose={() => setPreviewOpen(false)} />
       )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-mist-300">

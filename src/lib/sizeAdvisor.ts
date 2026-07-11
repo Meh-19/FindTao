@@ -209,6 +209,20 @@ export function scoreChart(
 
 export type Confidence = "high" | "medium" | "low";
 
+/**
+ * A recommendation saved onto a cart/haul item so the size call survives past
+ * the Advisor screen. Lives inside SavedItem (see lib/store) — persisted with
+ * the cart/hauls snapshot, no separate DB column.
+ */
+export interface SizeAdvice {
+  size: string;
+  confidence: Confidence;
+  garmentType: GarmentType;
+  fitPreference: FitPreference;
+  /** When it was computed (epoch ms) — lets the UI show "based on an older run" later if needed. */
+  at: number;
+}
+
 export function confidenceFor(score: SizeScore): Confidence {
   if (score.matchedDimensions >= 3 && score.score <= 3) return "high";
   if (score.matchedDimensions >= 2) return "medium";

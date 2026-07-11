@@ -5,6 +5,7 @@ import { ArrowRight, Globe, Link2, Search, ShoppingBasket, Sparkles } from "luci
 import { storeAlbums } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
 import { ItemCard } from "@/components/ItemCard";
+import { StoreAvatar } from "@/components/StoreAvatar";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore } from "@/lib/store";
 
@@ -106,12 +107,7 @@ export default function HomePage() {
               className="card-pop fade-up flex items-center gap-3 rounded-none border border-white/5 bg-ink-800/80 p-4"
               style={{ animationDelay: `${i * 70}ms` }}
             >
-              <span
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none text-[11px] font-bold text-white shadow"
-                style={{ background: "#1a1a1a" }}
-              >
-                {s.name.slice(0, 2).toUpperCase()}
-              </span>
+              <StoreAvatar store={s} className="h-10 w-10 rounded-none text-[11px] shadow" />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-mist-100">{s.name}</span>
                 <span className="block truncate text-xs text-mist-500">

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
+import { StoreAvatar } from "./StoreAvatar";
 import { SyncBadge } from "./Chrome";
 
 const LINKS = [
@@ -177,12 +178,7 @@ function SidebarContent() {
                 pathname === `/store/${s.id}` ? "bg-white/5" : ""
               }`}
             >
-              <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-[9px] font-bold text-white shadow"
-                style={{ background: "#1a1a1a" }}
-              >
-                {s.name.slice(0, 2).toUpperCase()}
-              </span>
+              <StoreAvatar store={s} className="h-6 w-6 rounded-none text-[9px] shadow" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 truncate text-xs text-mist-300 group-hover:text-mist-100">
                   <span className="truncate">{s.name}</span>

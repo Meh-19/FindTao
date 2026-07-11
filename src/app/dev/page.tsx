@@ -1,12 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { BadgeDollarSign, Globe, MessageSquareText, Package, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BadgeDollarSign, Globe, ImagePlus, MessageSquareText, Package, Plus, ShieldCheck, Tags, Trash2, Users, Wrench } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { STORE_CATEGORIES, type StoreCategory, type StoreInfo } from "@/data/stores";
 import type { Category, CatalogItem } from "@/data/catalog";
 import { parseLink } from "@/lib/links";
 import { ACTIVE_AGENTS } from "@/lib/agents";
+import { StoreAvatar } from "@/components/StoreAvatar";
 import { useStore, type TagDef } from "@/lib/store";
+
+const STORE_AVATAR_BUCKET = "store-avatars";
+
+/**
+ * Upload a store profile picture to Supabase Storage and return its public URL.
+ * Admin-only by the bucket's RLS policy (see supabase/schema.sql). Returns null
+ * on failure so callers can toast.
+ */
+async function uploadStoreImage(sb: SupabaseClient, file: File, storeId: string): Promise<string | null> {
+  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${storeId || "store"}-${Date.now()}.${ext}`;
+  const { error } = await sb.storage
+    .from(STORE_AVATAR_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type || undefined });
+  if (error) return null;
+  return sb.storage.from(STORE_AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
+}
 
 const CATALOG_CATEGORIES: Category[] = ["jacket", "hoodie", "tee", "pants", "shoes", "bag", "accessory"];
 
@@ -109,6 +128,18 @@ function AddStore() {
   const [discover, setDiscover] = useState(true);
   const [trust, setTrust] = useState(50);
   const [busy, setBusy] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function pickImage(file: File) {
+    if (!sb) return;
+    setUploading(true);
+    const storeId = slugify(name.trim() || yupooName(url.trim()) || "store");
+    const publicUrl = await uploadStoreImage(sb, file, storeId);
+    if (publicUrl) setImageUrl(publicUrl);
+    else toast("Image upload failed — check the storage bucket", "error");
+    setUploading(false);
+  }
 
   async function add() {
     if (!sb || busy) return;
@@ -131,12 +162,13 @@ function AddStore() {
       hue2,
       trust: Math.max(0, Math.min(100, Math.round(trust))),
       discover,
+      image_url: imageUrl,
     });
     if (error) {
       toast(error.message, "error");
     } else {
       toast(`${n} added to the directory`);
-      setName(""); setUrl(""); setBlurb(""); setTags([]); setTrust(50);
+      setName(""); setUrl(""); setBlurb(""); setTags([]); setTrust(50); setImageUrl(null);
       await refreshDirectory();
     }
     setBusy(false);
@@ -148,6 +180,25 @@ function AddStore() {
         <input value={url} onChange={(e) => { setUrl(e.target.value); const y = yupooName(e.target.value); if (y && !name) setName(y); }} placeholder="https://store.x.yupoo.com" className={inputClass} />
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Store name" className={inputClass} />
         <input value={blurb} onChange={(e) => setBlurb(e.target.value)} placeholder="Short blurb (optional)" className={`${inputClass} sm:col-span-2`} />
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <StoreAvatar store={{ name: name.trim() || "?", image: imageUrl }} className="h-10 w-10 rounded-none text-[11px]" />
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-none border border-ink-500 px-3 py-2 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300">
+          <ImagePlus size={13} aria-hidden="true" />
+          {uploading ? "Uploading…" : imageUrl ? "Change picture" : "Profile picture (optional)"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) pickImage(f); e.target.value = ""; }}
+          />
+        </label>
+        {imageUrl && (
+          <button type="button" onClick={() => setImageUrl(null)} className="text-xs text-mist-500 hover:text-red-400">
+            Remove
+          </button>
+        )}
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {STORE_CATEGORIES.map((c) => (
@@ -263,8 +314,19 @@ function StoreRow({
   const { sb, refreshDirectory, tagDefs, toast } = useStore();
   const storeTags = tagDefs.filter((t) => t.kind === "store");
   const [trustDraft, setTrustDraft] = useState(String(store.trust));
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setTrustDraft(String(store.trust)), [store.trust]);
+
+  async function pickImage(file: File) {
+    if (!sb) return;
+    setUploading(true);
+    const publicUrl = await uploadStoreImage(sb, file, store.id);
+    if (!publicUrl) toast("Image upload failed — check the storage bucket", "error");
+    else await update({ image_url: publicUrl }, `Picture updated for ${store.name}`);
+    setUploading(false);
+  }
 
   async function update(patch: Record<string, unknown>, msg: string) {
     if (!sb) return;
@@ -312,12 +374,27 @@ function StoreRow({
           aria-label={`Select ${store.name}`}
           className="accent-white"
         />
-        <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-[9px] font-bold text-white"
-          style={{ background: "#1a1a1a" }}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          title={store.image ? "Change profile picture" : "Upload profile picture"}
+          aria-label={`Upload profile picture for ${store.name}`}
+          className="relative shrink-0 disabled:opacity-60"
         >
-          {store.name.slice(0, 2).toUpperCase()}
-        </span>
+          <StoreAvatar store={store} className="h-7 w-7 rounded-none text-[9px]" />
+          <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-none border border-ink-500 bg-ink-900 text-mist-300">
+            <ImagePlus size={8} aria-hidden="true" />
+          </span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) pickImage(f); e.target.value = ""; }}
+          />
+        </button>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-mist-100">
             {store.name}

@@ -16,6 +16,8 @@ export interface StoreInfo {
   /** Directory-managed flags — set from the dev panel. */
   discover?: boolean;
   banned?: boolean;
+  /** Uploaded profile picture URL — shown instead of the abbreviation avatar. */
+  image?: string | null;
 }
 
 /**

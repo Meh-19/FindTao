@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, MessageSquareText, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { BookmarkCheck, CheckCircle2, MessageSquareText, RotateCcw, Save } from "lucide-react";
 import type { Recommendation, ReviewSignal, SizeChart } from "@/lib/sizeAdvisor";
 
 const CONFIDENCE_LABEL: Record<Recommendation["confidence"], string> = {
@@ -19,13 +20,25 @@ export function AdvisorResult({
   recommendation,
   chart,
   reviewSignal,
+  autoSaved,
+  attachable,
+  onAttach,
   onReset,
 }: {
   recommendation: Recommendation;
   chart: SizeChart;
   reviewSignal: ReviewSignal | null;
+  /** True when the size already auto-saved onto a matching cart/haul item. */
+  autoSaved: boolean;
+  /** Album-backed cart/haul items this size can be attached to. */
+  attachable: { id: string; title: string }[];
+  onAttach: (itemId: string) => void;
   onReset: () => void;
 }) {
+  const [attachId, setAttachId] = useState(attachable[0]?.id ?? "");
+  const [attached, setAttached] = useState(false);
+  const showSaved = autoSaved || attached;
+
   return (
     <div className="border border-white/10 bg-ink-800/80">
       <div className="flow-bg h-0.5" />
@@ -37,6 +50,48 @@ export function AdvisorResult({
         >
           <CheckCircle2 size={13} aria-hidden="true" /> {CONFIDENCE_LABEL[recommendation.confidence]}
         </span>
+      </div>
+
+      {/* Save-to-item: keeps the size call with the item in the cart/haul so it
+          shows as a colored chip there, not just on this screen. */}
+      <div className="border-t border-white/5 p-5">
+        {showSaved ? (
+          <p className="flex items-center gap-1.5 text-sm text-emerald-300">
+            <BookmarkCheck size={15} aria-hidden="true" />
+            Saved to your item — size <span className="font-semibold">{recommendation.size}</span> now shows on it in your cart &amp; hauls.
+          </p>
+        ) : attachable.length > 0 ? (
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-mist-500">Save this size to an item</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <select
+                value={attachId}
+                onChange={(e) => setAttachId(e.target.value)}
+                className="min-w-0 flex-1 rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 outline-none focus:border-neon-500"
+              >
+                {attachable.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.title}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  if (!attachId) return;
+                  onAttach(attachId);
+                  setAttached(true);
+                }}
+                className="btn-glow flex items-center justify-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white"
+              >
+                <Save size={14} aria-hidden="true" /> Save size
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-mist-500">
+            Add this item to your cart or a haul to save this size onto it.
+          </p>
+        )}
       </div>
 
       <div className="border-t border-white/5 p-5">

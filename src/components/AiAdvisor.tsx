@@ -20,7 +20,9 @@ import {
 import {
   detectReviewBias,
   recommendSize,
+  type Recommendation,
   type ReviewSignal,
+  type SizeAdvice,
   type SizeChart,
 } from "@/lib/sizeAdvisor";
 import { ChartPicker, type ChartSelection } from "./advisor/ChartPicker";
@@ -373,17 +375,33 @@ function ChartReview({
   );
 }
 
+/** Build the persistable size call from a recommendation + the confirmed chart. */
+function adviceFrom(rec: Recommendation, chart: SizeChart, fitPreference: SizeAdvice["fitPreference"]): SizeAdvice {
+  return { size: rec.size, confidence: rec.confidence, garmentType: chart.garmentType, fitPreference, at: Date.now() };
+}
+
 export function AiAdvisor() {
-  const { measurements, hydrated, sb, toast } = useStore();
+  const { measurements, hydrated, sb, toast, cart, hauls, setItemAdvice } = useStore();
   const [editing, setEditing] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: "picking" });
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [reviewSignal, setReviewSignal] = useState<ReviewSignal | null>(null);
+  // Whether the last confirmed chart's size auto-saved onto an existing cart/haul line.
+  const [autoSaved, setAutoSaved] = useState(false);
 
   const resolved = useMemo(
     () => ({ ...resolveMeasurements(measurements), footLengthCm: resolveFootLength(measurements) }),
     [measurements],
   );
+
+  // Album-backed items already in the cart or a haul — targets for attaching a size call.
+  const attachable = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const i of [...cart, ...hauls.flatMap((h) => h.items)]) {
+      if (i.id.startsWith("album:")) byId.set(i.id, i.title);
+    }
+    return [...byId].map(([id, title]) => ({ id, title }));
+  }, [cart, hauls]);
 
   async function handlePick(selection: ChartSelection) {
     setAnalyzeError(null);
@@ -415,6 +433,20 @@ export function AiAdvisor() {
       signal = detectReviewBias(texts);
     }
     setReviewSignal(signal);
+
+    // Auto-save the size onto the matching cart/haul line if this chart came
+    // from an item the shopper already has. Otherwise the result screen offers
+    // an attach picker.
+    const rec = recommendSize(chart, resolved, measurements.fitPreference, signal ?? undefined);
+    const itemId = `album:${selection.host}:${selection.albumId}`;
+    const exists = cart.some((l) => l.id === itemId) || hauls.some((h) => h.items.some((i) => i.id === itemId));
+    if (rec && exists) {
+      setItemAdvice(itemId, adviceFrom(rec, chart, measurements.fitPreference));
+      setAutoSaved(true);
+      toast(`Saved size ${rec.size} to your haul item`);
+    } else {
+      setAutoSaved(false);
+    }
     setStage({ kind: "done", selection, chart });
   }
 
@@ -477,9 +509,17 @@ export function AiAdvisor() {
             recommendation={recommendation}
             chart={stage.chart}
             reviewSignal={reviewSignal}
+            autoSaved={autoSaved}
+            attachable={attachable}
+            onAttach={(itemId) => {
+              setItemAdvice(itemId, adviceFrom(recommendation, stage.chart, measurements.fitPreference));
+              setAutoSaved(true);
+              toast(`Saved size ${recommendation.size} to your haul item`);
+            }}
             onReset={() => {
               setStage({ kind: "picking" });
               setReviewSignal(null);
+              setAutoSaved(false);
             }}
           />
         ) : (

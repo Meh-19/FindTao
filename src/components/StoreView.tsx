@@ -10,6 +10,7 @@ import { detectStorePlatform } from "@/lib/platform";
 import { parsePriceCnyDetailed, type ParsedPrice } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
+import { StoreAvatar } from "./StoreAvatar";
 import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
 import { useStore } from "@/lib/store";
@@ -308,12 +309,7 @@ export function StoreView({ id }: { id: string }) {
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center gap-4 rounded-none border border-white/5 bg-ink-800/80 p-5">
-        <span
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-none text-sm font-bold text-white shadow-hard-sm"
-          style={{ background: "#1a1a1a" }}
-        >
-          {store.name.slice(0, 2).toUpperCase()}
-        </span>
+        <StoreAvatar store={store} className="h-14 w-14 rounded-none text-sm shadow-hard-sm" />
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2 text-xl font-bold text-mist-100">
             {store.name}

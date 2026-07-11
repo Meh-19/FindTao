@@ -9,6 +9,8 @@ export interface ChartSelection {
   host: string;
   storeId: string | null;
   storeName: string;
+  /** Yupoo album id the chart came from — with `host`, rebuilds the `album:{host}:{id}` item id so a saved size can attach to the cart/haul line. */
+  albumId: string;
   /** Raw (unproxied) photo.yupoo.com URL — what analyze-chart actually fetches. */
   photoUrl: string;
 }
@@ -362,7 +364,7 @@ export function ChartPicker({ onPick }: { onPick: (selection: ChartSelection) =>
             {photos.map((photo, i) => (
               <button
                 key={photo}
-                onClick={() => onPick({ host: target.host, storeId: target.storeId, storeName: target.storeName, photoUrl: photo })}
+                onClick={() => onPick({ host: target.host, storeId: target.storeId, storeName: target.storeName, albumId: target.albumId, photoUrl: photo })}
                 aria-label={`Use photo ${i + 1} as the size chart`}
                 className="group aspect-square overflow-hidden border border-white/5 transition-colors hover:border-white"
               >

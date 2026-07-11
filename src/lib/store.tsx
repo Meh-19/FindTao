@@ -14,6 +14,7 @@ import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
 import type { CatalogItem, Category } from "@/data/catalog";
 import { EMPTY_MEASUREMENTS, type Measurements } from "./measurements";
+import type { SizeAdvice } from "./sizeAdvisor";
 
 export interface TagDef {
   id: number;
@@ -34,6 +35,8 @@ interface DirectoryRow {
   trust: number;
   discover: boolean;
   banned: boolean;
+  /** Uploaded profile picture URL (Supabase Storage), null when unset. */
+  image_url: string | null;
 }
 
 function rowToStore(row: DirectoryRow): StoreInfo {
@@ -50,6 +53,7 @@ function rowToStore(row: DirectoryRow): StoreInfo {
     tags: row.tags,
     discover: row.discover,
     banned: row.banned,
+    image: row.image_url ?? null,
   };
 }
 
@@ -136,6 +140,8 @@ export interface SavedItem {
   storeName: string;
   /** Marketplace item URL when known — powers the buy-on-agent links. */
   url: string | null;
+  /** Saved AI Advisor size call for this item, if the shopper ran the advisor on it. */
+  advice?: SizeAdvice;
 }
 
 export interface Haul {
@@ -166,6 +172,26 @@ export function shareableStores(items: SavedItem[]): { id: string; name: string 
   return [...seen].map(([id, name]) => ({ id, name }));
 }
 
+function sanitizeAdvice(value: unknown): SizeAdvice | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const r = value as Partial<SizeAdvice>;
+  if (typeof r.size !== "string") return undefined;
+  const confidence = r.confidence === "high" || r.confidence === "medium" || r.confidence === "low" ? r.confidence : "low";
+  const garmentType =
+    r.garmentType === "top" || r.garmentType === "bottom" || r.garmentType === "outerwear" || r.garmentType === "footwear"
+      ? r.garmentType
+      : "unknown";
+  const fitPreference =
+    r.fitPreference === "slim" || r.fitPreference === "relaxed" || r.fitPreference === "oversized" ? r.fitPreference : "regular";
+  return {
+    size: r.size,
+    confidence,
+    garmentType,
+    fitPreference,
+    at: typeof r.at === "number" && Number.isFinite(r.at) ? r.at : Date.now(),
+  };
+}
+
 function sanitizeItems(value: unknown): SavedItem[] {
   if (!Array.isArray(value)) return [];
   const out: SavedItem[] = [];
@@ -174,6 +200,7 @@ function sanitizeItems(value: unknown): SavedItem[] {
     if (typeof raw !== "object" || raw === null) continue;
     const r = raw as Partial<SavedItem>;
     if (typeof r.id !== "string" || typeof r.title !== "string") continue;
+    const advice = sanitizeAdvice(r.advice);
     out.push({
       id: r.id,
       title: r.title,
@@ -184,6 +211,7 @@ function sanitizeItems(value: unknown): SavedItem[] {
       storeId: typeof r.storeId === "string" ? r.storeId : "",
       storeName: typeof r.storeName === "string" ? r.storeName : "",
       url: typeof r.url === "string" ? r.url : null,
+      ...(advice ? { advice } : {}),
     });
   }
   return out;
@@ -352,6 +380,8 @@ interface Store {
   setCartQty: (id: string, qty: number) => void;
   removeFromCart: (id: string) => void;
   clearCart: () => void;
+  /** Save (or clear with null) an AI Advisor size call onto every cart/haul line with this id. */
+  setItemAdvice: (itemId: string, advice: SizeAdvice | null) => void;
   hauls: Haul[];
   activeHaul: Haul;
   createHaul: (name: string) => void;
@@ -606,6 +636,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearCart = useCallback(() => setCart([]), []);
+
+  // Stamp (or clear) a saved AI Advisor size call onto every matching line —
+  // an item can live in the cart and one or more hauls at once, so update all.
+  const setItemAdvice = useCallback((itemId: string, advice: SizeAdvice | null) => {
+    const apply = (item: SavedItem): SavedItem => {
+      if (item.id !== itemId) return item;
+      if (advice === null) {
+        const { advice: _drop, ...rest } = item;
+        return rest;
+      }
+      return { ...item, advice };
+    };
+    setCart((prev) => (prev.some((l) => l.id === itemId) ? prev.map(apply) : prev));
+    setHauls((prev) =>
+      prev.map((h) =>
+        h.items.some((i) => i.id === itemId) ? { ...h, items: h.items.map(apply) } : h,
+      ),
+    );
+  }, []);
 
   const createHaul = useCallback((name: string) => {
     const id = `haul-${Date.now().toString(36)}`;
@@ -1091,6 +1140,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCartQty,
       removeFromCart,
       clearCart,
+      setItemAdvice,
       hauls,
       activeHaul,
       createHaul,
@@ -1147,7 +1197,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
       wishlist, toggleWishlist, cart, cartOpen,
-      addToCart, setCartQty, removeFromCart, importCart, clearCart,
+      addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
       removeFromHaul, assignCartToHaul, shareHaul, shareCart, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,

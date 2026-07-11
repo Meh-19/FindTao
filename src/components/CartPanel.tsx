@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ImageOff, Minus, Plus, X } from "lucide-react";
 import { proxiedImg } from "@/lib/yupoo";
+import { AdviceBadge } from "@/components/AdviceBadge";
 import { SharePicker } from "@/components/SharePicker";
 import { useStore, shareableStores, type SavedItem } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
@@ -128,14 +129,15 @@ export function CartPanel() {
                       <p className="line-clamp-2 text-xs font-medium leading-snug text-mist-100" title={line.title}>
                         {line.title}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-mist-500">
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-mist-500">
                         {href ? (
-                          <Link href={href} onClick={() => setCartOpen(false)} className="hover:text-neon-300 hover:underline">
+                          <Link href={href} onClick={() => setCartOpen(false)} className="truncate hover:text-neon-300 hover:underline">
                             {line.storeName}
                           </Link>
                         ) : (
-                          line.storeName
+                          <span className="truncate">{line.storeName}</span>
                         )}
+                        {line.advice && <AdviceBadge advice={line.advice} />}
                       </p>
                       <div className="mt-1.5 flex items-center justify-between gap-2">
                         <div className="flex items-center rounded-none border border-ink-500">

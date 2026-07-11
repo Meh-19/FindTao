@@ -8,6 +8,7 @@ import { storeItems } from "@/data/catalog";
 import { storeAlbums } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
 import { fetchAlbumIds } from "@/lib/albumIds";
+import { StoreAvatar } from "@/components/StoreAvatar";
 import { useStore } from "@/lib/store";
 
 export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: number }) {
@@ -59,12 +60,8 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
       style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
     >
       <div className="flex items-start gap-3">
-        <Link
-          href={`/store/${store.id}`}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none text-xs font-bold text-white shadow-hard-sm"
-          style={{ background: "#1a1a1a" }}
-        >
-          {store.name.slice(0, 2).toUpperCase()}
+        <Link href={`/store/${store.id}`} className="shrink-0">
+          <StoreAvatar store={store} className="h-11 w-11 rounded-none text-xs shadow-hard-sm" />
         </Link>
         <div className="min-w-0 flex-1">
           <Link href={`/store/${store.id}`} className="block truncate text-sm font-semibold text-mist-100 hover:underline">

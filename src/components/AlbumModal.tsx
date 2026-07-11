@@ -12,6 +12,7 @@ import { useStore } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
+import { StoreAvatar } from "./StoreAvatar";
 import { Lightbox } from "./Lightbox";
 
 /**
@@ -128,12 +129,7 @@ export function AlbumModal({
         <div className="flow-bg h-0.5 shrink-0" />
         <div className="flex items-center justify-between px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none text-[10px] font-bold text-white"
-              style={{ background: "#1a1a1a" }}
-            >
-              {store.name.slice(0, 2).toUpperCase()}
-            </span>
+            <StoreAvatar store={store} className="h-8 w-8 rounded-none text-[10px]" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-mist-100">{album.name}</p>
               <p className="text-[11px] text-mist-500">

@@ -7,6 +7,7 @@ import type { CatalogItem } from "@/data/catalog";
 import { itemLink, itemStore, CATEGORY_WEIGHT_G } from "@/data/catalog";
 import { Thumb } from "./Thumb";
 import { AgentActions } from "./AgentActions";
+import { StoreAvatar } from "./StoreAvatar";
 import { CopyButton } from "./CopyButton";
 import { catalogToSaved } from "./ItemCard";
 import { useStore } from "@/lib/store";
@@ -83,7 +84,7 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
 }
 
 export function ItemDetail({ id }: { id: string }) {
-  const { inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, catalogItems } = useStore();
+  const { inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, catalogItems, allStores } = useStore();
   const item = catalogItems.find((i) => i.id === id);
   const [qcOpen, setQcOpen] = useState<number | null>(null);
 
@@ -98,6 +99,9 @@ export function ItemDetail({ id }: { id: string }) {
 
   const link = itemLink(item);
   const store = itemStore(item);
+  // Catalog items carry only a denormalized store name; pull the live directory
+  // store's uploaded picture when it exists.
+  const storeImage = allStores.find((s) => s.id === store.id)?.image ?? null;
   const carted = hydrated && inCart(`cat:${item.id}`);
   const wished = hydrated && wishlist.includes(item.id);
   const trusted = store.trust >= 85;
@@ -155,12 +159,7 @@ export function ItemDetail({ id }: { id: string }) {
             href={`/store/${store.id}`}
             className="card-pop mt-4 flex items-center gap-3 rounded-none border border-white/5 bg-ink-800/80 px-4 py-3 text-sm"
           >
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none text-[10px] font-bold text-white"
-              style={{ background: "#1a1a1a" }}
-            >
-              {store.name.slice(0, 2).toUpperCase()}
-            </span>
+            <StoreAvatar store={{ name: store.name, image: storeImage }} className="h-9 w-9 rounded-none text-[10px]" />
             <span className="min-w-0 flex-1">
               <span className="block font-medium text-mist-100">{store.name}</span>
               <span className="block text-xs text-mist-500">

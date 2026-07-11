@@ -6,6 +6,7 @@ import {
   ExternalLink, Globe, ImageOff, Lock, Pencil, Plus, Share2, X,
 } from "lucide-react";
 import { SignInButton } from "@clerk/nextjs";
+import { AdviceBadge } from "@/components/AdviceBadge";
 import { CopyButton } from "@/components/CopyButton";
 import { HaulPreview } from "@/components/HaulPreview";
 import { SharePicker } from "@/components/SharePicker";
@@ -207,6 +208,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
                 <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
                   {item.title}
                 </p>
+                {item.advice && <AdviceBadge advice={item.advice} />}
                 {item.qty > 1 && (
                   <span className="rounded-none bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
                     ×{item.qty}

@@ -182,8 +182,11 @@ create table if not exists public.store_directory (
   trust int not null default 50,
   discover boolean not null default true,
   banned boolean not null default false,
+  image_url text,
   created_at timestamptz not null default now()
 );
+-- Uploaded store profile picture (Supabase Storage public URL); idempotent add.
+alter table public.store_directory add column if not exists image_url text;
 alter table public.store_directory enable row level security;
 
 drop policy if exists "read visible stores" on public.store_directory;
@@ -312,3 +315,24 @@ create policy "update own shares" on public.shared_hauls for update
 drop policy if exists "delete own shares" on public.shared_hauls;
 create policy "delete own shares" on public.shared_hauls for delete
   using (owner_id = (auth.jwt() ->> 'sub'));
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Storage: public bucket for store profile pictures, uploaded from /dev. Anyone
+-- can read (avatars show for signed-out visitors too); only admins can write.
+-- ─────────────────────────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public)
+  values ('store-avatars', 'store-avatars', true)
+  on conflict (id) do nothing;
+
+drop policy if exists "public reads store avatars" on storage.objects;
+create policy "public reads store avatars" on storage.objects for select
+  using (bucket_id = 'store-avatars');
+drop policy if exists "admin inserts store avatars" on storage.objects;
+create policy "admin inserts store avatars" on storage.objects for insert
+  with check (bucket_id = 'store-avatars' and public.is_admin());
+drop policy if exists "admin updates store avatars" on storage.objects;
+create policy "admin updates store avatars" on storage.objects for update
+  using (bucket_id = 'store-avatars' and public.is_admin());
+drop policy if exists "admin deletes store avatars" on storage.objects;
+create policy "admin deletes store avatars" on storage.objects for delete
+  using (bucket_id = 'store-avatars' and public.is_admin());
