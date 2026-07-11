@@ -27,13 +27,21 @@ create table if not exists public.user_state (
 );
 alter table public.user_state enable row level security;
 
--- Migrate a pre-Clerk table (uuid user_id + FK to auth.users) in place. Policies
--- are dropped first so retyping the column can't break their old expressions.
+-- Migrate a pre-Clerk table (uuid user_id + FK to auth.users) in place. The
+-- column retype rewrites the table under an exclusive lock, so it's guarded to
+-- run only while the column is still uuid — otherwise a re-run needlessly
+-- re-locks the table and can deadlock against the live app's reads. Policies are
+-- dropped first so retyping can't break their old expressions.
 drop policy if exists "read own state" on public.user_state;
 drop policy if exists "insert own state" on public.user_state;
 drop policy if exists "update own state" on public.user_state;
 alter table public.user_state drop constraint if exists user_state_user_id_fkey;
-alter table public.user_state alter column user_id type text using user_id::text;
+do $$ begin
+  if (select data_type from information_schema.columns
+      where table_schema = 'public' and table_name = 'user_state' and column_name = 'user_id') = 'uuid' then
+    alter table public.user_state alter column user_id type text using user_id::text;
+  end if;
+end $$;
 
 create policy "read own state" on public.user_state for select
   using ((auth.jwt() ->> 'sub') = user_id);
@@ -68,7 +76,13 @@ drop policy if exists "insert own profile" on public.profiles;
 drop policy if exists "update own profile" on public.profiles;
 drop policy if exists "admin updates profiles" on public.profiles;
 alter table public.profiles drop constraint if exists profiles_user_id_fkey;
-alter table public.profiles alter column user_id type text using user_id::text;
+-- Guarded like user_state above: only rewrite while the column is still uuid.
+do $$ begin
+  if (select data_type from information_schema.columns
+      where table_schema = 'public' and table_name = 'profiles' and column_name = 'user_id') = 'uuid' then
+    alter table public.profiles alter column user_id type text using user_id::text;
+  end if;
+end $$;
 
 -- Admin check: an 'admin' or 'owner' tag on the caller's own profile. security
 -- definer so RLS policies can call it. Keyed on the Clerk `sub` claim.
