@@ -66,7 +66,7 @@ export function SharePicker({
       const url = await publish(storeIds);
       if (!url) return;
       const slug = url.split("/haul/")[1];
-      const res = await fetch(`/haul/${slug}/image`);
+      const res = await fetch(`/haul/${slug}/image`, { cache: "no-store" });
       if (!res.ok) throw new Error("image fetch failed");
       const blob = await res.blob();
       await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);

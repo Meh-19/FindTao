@@ -5,6 +5,9 @@ import { formatMoney } from "@/lib/currency";
 import { inlineYupooImage, poolMap } from "@/lib/imageInline";
 
 export const runtime = "nodejs";
+// A share is a snapshot that changes (re-share, store filter, price edits), and
+// ImageResponse otherwise sends a 1-year immutable cache — so force fresh renders.
+export const dynamic = "force-dynamic";
 
 // Full "copy image" of a share — every item in a grid, dynamic height. Distinct
 // from opengraph-image (the fixed 1200×630 link-unfurl). Capped so a giant haul
@@ -133,6 +136,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
         </div>
       </div>
     ),
-    { width: WIDTH, height },
+    { width: WIDTH, height, headers: { "Cache-Control": "no-store, max-age=0" } },
   );
 }

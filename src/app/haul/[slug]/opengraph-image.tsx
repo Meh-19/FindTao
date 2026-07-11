@@ -5,6 +5,8 @@ import { formatMoney } from "@/lib/currency";
 import { inlineYupooImage, poolMap } from "@/lib/imageInline";
 
 export const runtime = "nodejs";
+// Shares change (re-share, store filter), so avoid the default 1-year immutable cache.
+export const dynamic = "force-dynamic";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "A shared FindTao haul";
@@ -67,6 +69,6 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         </div>
       </div>
     ),
-    { ...size },
+    { ...size, headers: { "Cache-Control": "public, max-age=0, must-revalidate" } },
   );
 }
