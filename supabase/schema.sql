@@ -104,14 +104,9 @@ create policy "update own profile" on public.profiles for update
 create policy "admin updates profiles" on public.profiles for update
   using (public.is_admin());
 
--- Bootstrap the site owner with the 'owner' role tag so the admin UI + RLS
--- writes are enabled for them. Requires the owner to have signed in once (which
--- creates their profile row and populates email from their Clerk account);
--- re-run this file after that first sign-in. Change the email if the owner does.
-update public.profiles
-  set tags = array['owner']
-  where email = 'ren.tipton@icloud.com'
-    and not (tags && array['owner', 'admin']);
+-- Dev/admin access is granted at the app layer: the account that signs in with
+-- the email set in the Railway DEV_EMAIL env var gets the 'owner' role tag on
+-- first sign-in (see src/app/api/dev/claim/route.ts). No email is hardcoded here.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Tag definitions — Discord-role-style labels, creatable from the dev panel.
