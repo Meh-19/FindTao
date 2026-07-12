@@ -355,7 +355,7 @@ function ChartReview({
             <button onClick={() => onConfirm({ ...chart, rows })} className="btn-glow rounded-none px-4 py-2 text-sm font-semibold text-white">
               Looks good — get my size
             </button>
-            <button onClick={onCancel} className="border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-red-400/40 hover:text-red-300">
+            <button onClick={onCancel} className="border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-danger/40 hover:text-danger">
               Pick a different photo
             </button>
           </div>
@@ -480,7 +480,7 @@ export function AiAdvisor() {
       </div>
 
       {analyzeError && (
-        <p className="mb-4 flex items-center gap-1.5 border border-red-400/30 bg-red-400/5 px-4 py-2.5 text-xs text-red-300">
+        <p className="mb-4 flex items-center gap-1.5 border border-danger/30 bg-danger/5 px-4 py-2.5 text-xs text-danger">
           <AlertTriangle size={13} aria-hidden="true" /> {analyzeError}
         </p>
       )}
@@ -541,7 +541,7 @@ export function AiAdvisor() {
 function Header() {
   return (
     <div className="mb-6">
-      <h1 className="flex items-center gap-2.5 text-3xl font-extrabold tracking-tight">
+      <h1 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight">
         <Ruler size={26} aria-hidden="true" className="text-neon-300" />
         AI <span className="flow-text">Advisor</span>
       </h1>

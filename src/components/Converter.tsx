@@ -24,7 +24,7 @@ export function Converter() {
       <span className="inline-flex items-center gap-1.5 rounded-none border border-neon-500/30 bg-neon-600/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.15em] text-neon-300">
         <Link2 size={12} aria-hidden="true" /> Any link in · every agent out
       </span>
-      <h1 className="mt-3 text-3xl font-extrabold tracking-tight">
+      <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">
         Link <span className="flow-text">converter</span>
       </h1>
       <p className="mt-1 text-sm text-mist-400">
@@ -40,7 +40,7 @@ export function Converter() {
       />
 
       {trimmed.length > 0 && !parsed && (
-        <div className="fade-up mt-3 rounded-none border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
+        <div className="fade-up mt-3 rounded-none border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           {shortLink
             ? "That's a shortened link (tb.cn / youshop10). Open it in a browser first, then paste the full product URL it redirects to."
             : "Couldn't find a product ID in that link. Paste a full product page URL from Taobao, Tmall, Weidian, 1688, or a supported agent."}

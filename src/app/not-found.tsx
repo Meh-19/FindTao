@@ -4,7 +4,7 @@ import { Home, Search } from "lucide-react";
 export default function NotFound() {
   return (
     <div className="fade-up mx-auto flex max-w-md flex-col items-center border border-dashed border-ink-500 px-6 py-14 text-center">
-      <h1 className="text-xl font-bold text-mist-100">Page not found</h1>
+      <h1 className="font-display text-xl font-bold text-mist-100">Page not found</h1>
       <p className="mt-1.5 text-sm text-mist-400">
         Whatever you were looking for isn&apos;t here — it may have been removed, or the link is off.
       </p>

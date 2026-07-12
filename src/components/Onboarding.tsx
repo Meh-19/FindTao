@@ -168,7 +168,7 @@ export function Onboarding() {
           </label>
 
           <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-mist-500">
-            <ShieldCheck size={13} className="mt-px shrink-0 text-emerald-400/80" aria-hidden="true" />
+            <ShieldCheck size={13} className="mt-px shrink-0 text-success/80" aria-hidden="true" />
             Your username and photo are public. Your email, hauls, cart, and measurements stay
             private to you.
           </p>

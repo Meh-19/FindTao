@@ -71,15 +71,15 @@ export default function LibraryPage() {
     <div className="fade-up">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">
+          <h1 className="font-display text-3xl font-bold tracking-tight">
             Your <span className="flow-text">library</span>
           </h1>
           <p className="mt-1 text-sm text-mist-400">
             Stores you follow. Favorites get a star and a filter.
           </p>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 rounded-none border border-ink-500 px-3 py-1.5 text-sm text-mist-300 transition-colors has-checked:border-amber-400/60 has-checked:bg-amber-400/10 has-checked:text-amber-300">
-          <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} className="accent-amber-400" />
+        <label className="flex cursor-pointer items-center gap-2 rounded-none border border-ink-500 px-3 py-1.5 text-sm text-mist-300 transition-colors has-checked:border-warning/60 has-checked:bg-warning/10 has-checked:text-warning">
+          <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} className="accent-warning" />
           <Star size={13} aria-hidden="true" className={favOnly ? "fill-current" : ""} /> Favorites only
         </label>
       </div>

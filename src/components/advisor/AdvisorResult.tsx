@@ -11,9 +11,9 @@ const CONFIDENCE_LABEL: Record<Recommendation["confidence"], string> = {
 };
 
 const CONFIDENCE_COLOR: Record<Recommendation["confidence"], string> = {
-  high: "border-emerald-400/40 bg-emerald-400/10 text-emerald-300",
-  medium: "border-amber-400/40 bg-amber-400/10 text-amber-300",
-  low: "border-red-400/40 bg-red-400/10 text-red-300",
+  high: "border-success/40 bg-success/10 text-success",
+  medium: "border-warning/40 bg-warning/10 text-warning",
+  low: "border-danger/40 bg-danger/10 text-danger",
 };
 
 export function AdvisorResult({
@@ -56,7 +56,7 @@ export function AdvisorResult({
           shows as a colored chip there, not just on this screen. */}
       <div className="border-t border-white/5 p-5">
         {showSaved ? (
-          <p className="flex items-center gap-1.5 text-sm text-emerald-300">
+          <p className="flex items-center gap-1.5 text-sm text-success">
             <BookmarkCheck size={15} aria-hidden="true" />
             Saved to your item — size <span className="font-semibold">{recommendation.size}</span> now shows on it in your cart &amp; hauls.
           </p>
@@ -130,7 +130,7 @@ export function AdvisorResult({
                     {b.chartCm.toFixed(1)}cm
                     {b.flatCorrected && (
                       <span
-                        className="ml-1 font-mono text-[9px] uppercase text-amber-400"
+                        className="ml-1 font-mono text-[9px] uppercase text-warning"
                         title={`Chart said ${b.rawChartCm.toFixed(1)}cm — doubled, looked like a flat (laid-flat) garment measurement`}
                       >
                         2x

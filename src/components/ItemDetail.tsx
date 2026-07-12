@@ -170,7 +170,7 @@ export function ItemDetail({ id }: { id: string }) {
               className={`rounded-none border px-2 py-0.5 text-xs font-medium ${
                 trusted
                   ? "border-neon-400/25 bg-neon-500/10 text-neon-300"
-                  : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                  : "border-warning/25 bg-warning/10 text-warning"
               }`}
             >
               Trust {store.trust}/100
@@ -214,8 +214,8 @@ export function ItemDetail({ id }: { id: string }) {
                 aria-pressed={wished}
                 className={`rounded-none border px-4 transition-colors ${
                   wished
-                    ? "border-rose-400/50 bg-rose-400/10 text-rose-400"
-                    : "border-ink-500 text-mist-400 hover:text-rose-400"
+                    ? "border-danger/50 bg-danger/10 text-danger"
+                    : "border-ink-500 text-mist-400 hover:text-danger"
                 }`}
               >
                 <Heart size={16} aria-hidden="true" className={wished ? "fill-current" : ""} />

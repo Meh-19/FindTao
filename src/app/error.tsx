@@ -22,8 +22,8 @@ export default function ErrorBoundary({
 
   return (
     <div className="fade-up mx-auto flex max-w-md flex-col items-center border border-white/10 bg-ink-800/80 px-6 py-14 text-center">
-      <AlertTriangle size={22} aria-hidden="true" className="text-red-400" />
-      <h1 className="mt-3 text-xl font-bold text-mist-100">Something broke</h1>
+      <AlertTriangle size={22} aria-hidden="true" className="text-danger" />
+      <h1 className="mt-3 font-display text-xl font-bold text-mist-100">Something broke</h1>
       <p className="mt-1.5 text-sm text-mist-400">
         This page hit an unexpected error. Your cart, hauls, and saved measurements are untouched —
         try again, or head back home.

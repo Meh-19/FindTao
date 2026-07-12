@@ -59,17 +59,17 @@ export function SyncBadge() {
             : "Cloud sync is not configured — everything is saved on this device."
         }
       >
-        <span className={`h-1.5 w-1.5 rounded-none ${signedOut ? "bg-mist-500" : "bg-amber-400"}`} />
+        <span className={`h-1.5 w-1.5 rounded-none ${signedOut ? "bg-mist-500" : "bg-warning"}`} />
         {signedOut ? "Not signed in" : "Local mode"}
       </span>
     );
   }
 
   const state = {
-    idle: { dot: "bg-emerald-400", label: "Cloud" },
+    idle: { dot: "bg-success", label: "Cloud" },
     syncing: { dot: "bg-aqua-400 pulse-soft", label: "Syncing…" },
-    synced: { dot: "bg-emerald-400", label: "Synced" },
-    error: { dot: "bg-red-400", label: "Sync error" },
+    synced: { dot: "bg-success", label: "Synced" },
+    error: { dot: "bg-danger", label: "Sync error" },
   }[syncStatus];
 
   return (
@@ -141,7 +141,7 @@ export function StatusBar() {
         <span title={ratesLive ? "Live rate via open.er-api.com" : "Fallback rate — live fetch unavailable"}>
           CNY→{prefs.currency}{" "}
           <span className="text-mist-300">{rate >= 10 ? rate.toFixed(1) : rate.toFixed(4)}</span>{" "}
-          <span className={ratesLive ? "text-emerald-400" : "text-amber-400"}>
+          <span className={ratesLive ? "text-success" : "text-warning"}>
             {ratesLive ? "live" : "fallback"}
           </span>
         </span>
@@ -208,8 +208,8 @@ export function BottomNav() {
 export function Toasts() {
   const { toasts } = useStore();
   const colors = {
-    success: "border-emerald-400/40 text-emerald-300",
-    error: "border-red-400/40 text-red-300",
+    success: "border-success/40 text-success",
+    error: "border-danger/40 text-danger",
     info: "border-aqua-400/40 text-aqua-300",
   };
   return (

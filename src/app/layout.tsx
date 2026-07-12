@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import "./globals.css";
+
+const display = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-space-grotesk" });
+const sans = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-inter" });
+const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains-mono" });
 import { StoreProvider } from "@/lib/store";
 import { Nav } from "@/components/Nav";
 import { CartPanel } from "@/components/CartPanel";
@@ -36,7 +41,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
         <div className="flow-bg fixed inset-x-0 top-0 z-50 h-0.5" />
         <ClerkProvider appearance={{ theme: dark }}>

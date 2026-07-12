@@ -447,7 +447,7 @@ export function ChartPicker({ onPick }: { onPick: (selection: ChartSelection) =>
       </div>
 
       {error && (
-        <p className="flex items-center gap-1.5 text-xs text-red-400">
+        <p className="flex items-center gap-1.5 text-xs text-danger">
           <AlertTriangle size={13} aria-hidden="true" /> {error}
         </p>
       )}

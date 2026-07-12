@@ -22,7 +22,7 @@ export default function TrackingPage() {
 
   return (
     <div className="fade-up mx-auto max-w-2xl">
-      <h1 className="text-3xl font-extrabold tracking-tight">
+      <h1 className="font-display text-3xl font-bold tracking-tight">
         Package <span className="flow-text">tracking</span>
       </h1>
       <p className="mt-1 text-sm text-mist-400">
@@ -72,7 +72,7 @@ export default function TrackingPage() {
               <button
                 onClick={() => removeTracking(p.number)}
                 aria-label="Remove tracking number"
-                className="rounded px-1.5 py-1 text-mist-500 hover:text-red-400"
+                className="rounded px-1.5 py-1 text-mist-500 hover:text-danger"
               >
                 <X size={14} aria-hidden="true" />
               </button>

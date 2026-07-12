@@ -54,7 +54,7 @@ export default function ShippingPage() {
 
   return (
     <div className="fade-up mx-auto max-w-2xl">
-      <h1 className="text-3xl font-extrabold tracking-tight">
+      <h1 className="font-display text-3xl font-bold tracking-tight">
         Shipping <span className="flow-text">calculator</span>
       </h1>
       <p className="mt-1 text-sm text-mist-400">
@@ -110,7 +110,7 @@ export default function ShippingPage() {
           <div
             key={q.name}
             className={`card-pop fade-up flex items-center gap-3 rounded-none border px-4 py-3 ${
-              i === 0 ? "border-emerald-400/40 bg-emerald-400/5" : "border-white/5 bg-ink-800/80"
+              i === 0 ? "border-success/40 bg-success/5" : "border-white/5 bg-ink-800/80"
             }`}
             style={{ animationDelay: `${i * 60}ms` }}
           >
@@ -118,7 +118,7 @@ export default function ShippingPage() {
               <p className="text-sm font-semibold text-mist-100">
                 {q.name}
                 {i === 0 && (
-                  <span className="ml-2 rounded-none border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
+                  <span className="ml-2 rounded-none border border-success/30 bg-success/10 px-2 py-0.5 text-[10px] font-bold uppercase text-success">
                     Cheapest
                   </span>
                 )}

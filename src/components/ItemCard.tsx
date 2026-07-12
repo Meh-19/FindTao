@@ -33,7 +33,7 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
   return (
     <div
       className={`card-pop fade-up group relative overflow-hidden rounded-none border bg-ink-800/80 ${
-        carted || inHaul ? "border-emerald-400/40" : "border-white/5"
+        carted || inHaul ? "border-success/40" : "border-white/5"
       }`}
       style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
     >
@@ -49,7 +49,7 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
           {prefs.autoPrices && <p className="mt-1.5 text-sm text-mist-300">{fmtCny(item.priceCny)}</p>}
           <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
             {item.qcCount > 0 && (
-              <span className="rounded-none border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 font-medium text-emerald-300">
+              <span className="rounded-none border border-success/25 bg-success/10 px-2 py-0.5 font-medium text-success">
                 {item.qcCount} QC
               </span>
             )}
@@ -58,7 +58,7 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
                 Trusted seller
               </span>
             ) : item.qcCount < 10 ? (
-              <span className="rounded-none border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 font-medium text-amber-300">
+              <span className="rounded-none border border-warning/25 bg-warning/10 px-2 py-0.5 font-medium text-warning">
                 Low data
               </span>
             ) : null}
@@ -78,7 +78,7 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
         aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
         aria-pressed={wished}
         className={`absolute left-3 top-3 rounded-none border border-white/15 bg-ink-950/90 p-1.5 shadow-hard-sm transition-all duration-200 hover:bg-ink-950 ${
-          wished ? "text-rose-400" : "text-white/80 hover:text-white"
+          wished ? "text-danger" : "text-white/80 hover:text-white"
         }`}
       >
         <Heart size={14} aria-hidden="true" className={wished ? "fill-current" : ""} />

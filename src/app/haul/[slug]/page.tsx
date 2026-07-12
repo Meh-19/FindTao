@@ -101,7 +101,7 @@ export default async function SharedHaulPage({ params }: { params: Promise<{ slu
           </div>
 
           {haul.kind !== "cart" && (
-            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-mist-100">{haul.name}</h1>
+            <h1 className="mt-3 font-display text-2xl font-bold tracking-tight text-mist-100">{haul.name}</h1>
           )}
           {stores.length > 0 && (
             <p className="mt-1 text-sm text-mist-400">

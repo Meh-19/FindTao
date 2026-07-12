@@ -97,7 +97,7 @@ export function CartPanel() {
             {cart.length > 0 && (
               <button
                 onClick={() => { clearCart(); toast("Cart cleared", "info"); }}
-                className="text-xs text-mist-500 transition-colors hover:text-red-400"
+                className="text-xs text-mist-500 transition-colors hover:text-danger"
               >
                 Clear
               </button>
@@ -171,7 +171,7 @@ export function CartPanel() {
                     <button
                       onClick={() => removeFromCart(line.id)}
                       aria-label={`Remove ${line.title} from cart`}
-                      className="self-start rounded px-1 py-1 text-mist-500 hover:text-red-400"
+                      className="self-start rounded px-1 py-1 text-mist-500 hover:text-danger"
                     >
                       <X size={13} aria-hidden="true" />
                     </button>

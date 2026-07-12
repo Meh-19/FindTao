@@ -317,7 +317,7 @@ export function StoreView({ id }: { id: string }) {
               onClick={() => toggleFavStore(store.id)}
               aria-label={fav ? "Unfavorite store" : "Favorite store"}
               aria-pressed={fav}
-              className={`p-0.5 ${fav ? "text-amber-300" : "text-mist-500 hover:text-amber-300"}`}
+              className={`p-0.5 ${fav ? "text-warning" : "text-mist-500 hover:text-warning"}`}
             >
               <Star size={16} aria-hidden="true" className={fav ? "fill-current" : ""} />
             </button>
@@ -366,7 +366,7 @@ export function StoreView({ id }: { id: string }) {
         {saved ? (
           <button
             onClick={() => { removeFromLibrary(store.id); toast(`${store.name} removed from library`, "info"); }}
-            className="flex w-full items-center justify-center gap-1.5 rounded-none border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300 sm:w-auto"
+            className="flex w-full items-center justify-center gap-1.5 rounded-none border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success sm:w-auto"
           >
             <Check size={14} aria-hidden="true" /> In library
           </button>
@@ -449,7 +449,7 @@ export function StoreView({ id }: { id: string }) {
                     onMouseEnter={() => clearNew(album.id)}
                     className={`card-pop fade-up group relative overflow-hidden rounded-none border bg-ink-800/80 transition-shadow duration-500 ${
                       inCartNow || inHaulNow
-                        ? "border-emerald-400/50"
+                        ? "border-success/50"
                         : isNew
                           ? "border-neon-400/70"
                           : "border-white/5"
@@ -464,7 +464,7 @@ export function StoreView({ id }: { id: string }) {
                           </span>
                         )}
                         {inCartNow && (
-                          <span className="flex items-center gap-1 rounded-none border border-emerald-400/50 bg-ink-950/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300">
+                          <span className="flex items-center gap-1 rounded-none border border-success/50 bg-ink-950/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-success">
                             <Check size={9} aria-hidden="true" /> In cart
                           </span>
                         )}

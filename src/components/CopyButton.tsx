@@ -27,7 +27,7 @@ export function CopyButton({
       onClick={copy}
       className={`flex items-center justify-center gap-1 rounded-none border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
         copied
-          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
+          ? "border-success/40 bg-success/10 text-success"
           : "border-ink-500 text-mist-300 hover:border-neon-500/60 hover:bg-neon-600/10 hover:text-neon-300"
       } ${className}`}
     >

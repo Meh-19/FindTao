@@ -26,7 +26,7 @@ export default function GlobalError({
       <body className="bg-ink-950 text-mist-100 antialiased">
         <div className="flex min-h-screen items-center justify-center px-4">
           <div className="w-full max-w-md border border-white/10 bg-ink-800/80 px-6 py-14 text-center">
-            <h1 className="text-xl font-bold">FindTao hit an error</h1>
+            <h1 className="font-display text-xl font-bold">FindTao hit an error</h1>
             <p className="mt-1.5 text-sm text-mist-400">
               Something went wrong loading the app itself. Your saved data lives in this browser and
               is untouched — reloading usually fixes this.

@@ -101,7 +101,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
               )}
               <button
                 onClick={() => { deleteHaul(haul.id); toast(`${haul.name} deleted`, "info"); }}
-                className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
+                className="ml-auto text-xs text-mist-500 transition-colors hover:text-danger"
               >
                 Delete
               </button>
@@ -134,11 +134,11 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
           <div className="mt-3">
             <div className="h-1.5 overflow-hidden rounded-none bg-ink-600">
               <div
-                className={overBudget ? "h-full bg-red-500" : "flow-bg h-full"}
+                className={overBudget ? "h-full bg-danger" : "flow-bg h-full"}
                 style={{ width: `${budgetPct}%` }}
               />
             </div>
-            <p className={`mt-1 text-[11px] ${overBudget ? "text-red-400" : "text-mist-500"}`}>
+            <p className={`mt-1 text-[11px] ${overBudget ? "text-danger" : "text-mist-500"}`}>
               {overBudget
                 ? `Over budget by ${formatMoney(totalCny - haul.budgetCny, "CNY")}`
                 : `${formatMoney(haul.budgetCny - totalCny, "CNY")} left of ${formatMoney(haul.budgetCny, "CNY")}`}
@@ -178,7 +178,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
                   </button>
                   <button
                     onClick={() => unshareHaul(haul.id)}
-                    className="ml-auto text-xs text-mist-500 transition-colors hover:text-red-400"
+                    className="ml-auto text-xs text-mist-500 transition-colors hover:text-danger"
                   >
                     Unshare
                   </button>
@@ -220,7 +220,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
                 <button
                   onClick={() => removeFromHaul(haul.id, item.id)}
                   aria-label="Remove from haul"
-                  className="rounded px-1.5 py-1 text-mist-500 hover:text-red-400"
+                  className="rounded px-1.5 py-1 text-mist-500 hover:text-danger"
                 >
                   <X size={14} aria-hidden="true" />
                 </button>
@@ -264,7 +264,7 @@ function HaulsView() {
   return (
     <div className="fade-up">
       <div className="mb-6">
-        <h1 className="text-3xl font-extrabold tracking-tight">
+        <h1 className="font-display text-3xl font-bold tracking-tight">
           Your <span className="flow-text">hauls</span>
         </h1>
         <p className="mt-1 text-sm text-mist-400">

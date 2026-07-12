@@ -183,7 +183,7 @@ function SidebarContent() {
                 <span className="flex items-center gap-1 truncate text-xs text-mist-300 group-hover:text-mist-100">
                   <span className="truncate">{s.name}</span>
                   {favStores.includes(s.id) && (
-                    <Star size={10} aria-label="Favorite" className="shrink-0 fill-amber-300 text-amber-300" />
+                    <Star size={10} aria-label="Favorite" className="shrink-0 fill-warning text-warning" />
                   )}
                 </span>
                 <span className="block truncate text-[10px] text-mist-500">

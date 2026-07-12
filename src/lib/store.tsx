@@ -93,7 +93,7 @@ function rowToCatalogItem(row: CatalogItemRow): CatalogItem {
 }
 
 export type CardSize = "s" | "m" | "l";
-export type AccentId = "mono" | "signal" | "acid" | "cobalt" | "amber";
+export type AccentId = "magenta" | "mono" | "signal" | "acid" | "cobalt" | "amber";
 
 /**
  * Accent themes — each is a single flat color (no gradients, keeps the
@@ -102,6 +102,7 @@ export type AccentId = "mono" | "signal" | "acid" | "cobalt" | "amber";
  * `ink` is the readable text color to put on top of `fg`.
  */
 export const ACCENTS: Record<AccentId, { label: string; fg: string; ink: string }> = {
+  magenta: { label: "Magenta", fg: "#ec4899", ink: "#0a0a0a" },
   mono: { label: "Mono", fg: "#ffffff", ink: "#000000" },
   signal: { label: "Signal Red", fg: "#ef4444", ink: "#ffffff" },
   acid: { label: "Acid Green", fg: "#a3e635", ink: "#000000" },
@@ -328,7 +329,7 @@ const DEFAULT_PREFS: Prefs = {
   currency: "USD",
   oneClick: false,
   cardSize: "m",
-  accent: "mono",
+  accent: "magenta",
   autoPrices: true,
   activeHaulId: "main",
   myRefs: {},

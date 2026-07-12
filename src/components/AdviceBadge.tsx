@@ -3,9 +3,9 @@ import type { SizeAdvice } from "@/lib/sizeAdvisor";
 
 /** Confidence → chip color (mirrors AdvisorResult's palette) = "how sure it is you'll fit". */
 const CONFIDENCE_CHIP: Record<SizeAdvice["confidence"], string> = {
-  high: "border-emerald-400/40 bg-emerald-400/10 text-emerald-300",
-  medium: "border-amber-400/40 bg-amber-400/10 text-amber-300",
-  low: "border-red-400/40 bg-red-400/10 text-red-300",
+  high: "border-success/40 bg-success/10 text-success",
+  medium: "border-warning/40 bg-warning/10 text-warning",
+  low: "border-danger/40 bg-danger/10 text-danger",
 };
 
 const CONFIDENCE_WORD: Record<SizeAdvice["confidence"], string> = {

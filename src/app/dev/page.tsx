@@ -195,7 +195,7 @@ function AddStore() {
           />
         </label>
         {imageUrl && (
-          <button type="button" onClick={() => setImageUrl(null)} className="text-xs text-mist-500 hover:text-red-400">
+          <button type="button" onClick={() => setImageUrl(null)} className="text-xs text-mist-500 hover:text-danger">
             Remove
           </button>
         )}
@@ -365,7 +365,7 @@ function StoreRow({
   }
 
   return (
-    <div className={`rounded-none border p-3 ${store.banned ? "border-red-400/30 bg-red-400/5" : "border-white/5 bg-ink-900/60"}`}>
+    <div className={`rounded-none border p-3 ${store.banned ? "border-danger/30 bg-danger/5" : "border-white/5 bg-ink-900/60"}`}>
       <div className="flex flex-wrap items-center gap-2.5">
         <input
           type="checkbox"
@@ -398,7 +398,7 @@ function StoreRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-mist-100">
             {store.name}
-            {store.banned && <span className="ml-2 text-[10px] font-bold uppercase text-red-400">banned</span>}
+            {store.banned && <span className="ml-2 text-[10px] font-bold uppercase text-danger">banned</span>}
             {store.discover === false && !store.banned && (
               <span className="ml-2 text-[10px] font-bold uppercase text-mist-500">hidden from discover</span>
             )}
@@ -430,14 +430,14 @@ function StoreRow({
           </button>
           <button
             onClick={() => update({ banned: !store.banned }, store.banned ? `${store.name} unbanned` : `${store.name} banned`)}
-            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-amber-400/60 hover:text-amber-300"
+            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-warning/60 hover:text-warning"
           >
             {store.banned ? "Unban" : "Ban"}
           </button>
           <button
             onClick={remove}
             aria-label={`Remove ${store.name}`}
-            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-red-400/60 hover:text-red-300"
+            className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-danger/60 hover:text-danger"
           >
             <Trash2 size={12} aria-hidden="true" />
           </button>
@@ -500,7 +500,7 @@ function StoreManager() {
         <button disabled={selected.size === 0} onClick={() => bulk({ discover: false }, "hidden from Discover")} className={bulkBtn}>Discover off</button>
         <button disabled={selected.size === 0} onClick={() => bulk({ banned: true }, "banned")} className={bulkBtn}>Ban</button>
         <button disabled={selected.size === 0} onClick={() => bulk({ banned: false }, "unbanned")} className={bulkBtn}>Unban</button>
-        <button disabled={selected.size === 0} onClick={() => bulk("delete", "removed")} className={`${bulkBtn} hover:border-red-400/60 hover:text-red-300`}>Remove</button>
+        <button disabled={selected.size === 0} onClick={() => bulk("delete", "removed")} className={`${bulkBtn} hover:border-danger/60 hover:text-danger`}>Remove</button>
       </div>
       {directory.length === 0 ? (
         <p className="rounded-none border border-dashed border-ink-500 px-4 py-8 text-center text-sm text-mist-500">
@@ -677,7 +677,7 @@ function ReviewManager() {
                     <p className="font-medium text-mist-300">{r.author}</p>
                     <p className="mt-0.5 text-mist-400">{r.content}</p>
                   </div>
-                  <button onClick={() => remove(r.id)} aria-label="Delete review" className="shrink-0 text-mist-500 hover:text-red-400">
+                  <button onClick={() => remove(r.id)} aria-label="Delete review" className="shrink-0 text-mist-500 hover:text-danger">
                     <Trash2 size={12} aria-hidden="true" />
                   </button>
                 </div>
@@ -789,7 +789,7 @@ function AddCatalogItem() {
         <input value={fitNote} onChange={(e) => setFitNote(e.target.value)} placeholder="Fit note (optional)" className={inputClass} />
       </div>
       {link.trim() && !parsed && (
-        <p className="mt-2 text-xs text-amber-400">That doesn't look like a Taobao/Weidian/1688/Xianyu item link.</p>
+        <p className="mt-2 text-xs text-warning">That doesn't look like a Taobao/Weidian/1688/Xianyu item link.</p>
       )}
       <button onClick={add} disabled={busy} className="btn-glow mt-3 rounded-none px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {busy ? "Adding…" : "Add item"}
@@ -830,7 +830,7 @@ function CatalogManager() {
               <button
                 onClick={() => remove(item)}
                 aria-label={`Remove ${item.title}`}
-                className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-red-400/60 hover:text-red-300"
+                className="rounded-none border border-ink-500 px-2 py-1 text-mist-400 transition-colors hover:border-danger/60 hover:text-danger"
               >
                 <Trash2 size={12} aria-hidden="true" />
               </button>
@@ -1036,7 +1036,7 @@ export default function DevPage() {
 
   return (
     <div className="fade-up mx-auto max-w-3xl">
-      <h1 className="flex items-center gap-2.5 text-3xl font-extrabold tracking-tight">
+      <h1 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight">
         <Wrench size={24} aria-hidden="true" className="text-neon-300" />
         Dev <span className="flow-text">panel</span>
       </h1>

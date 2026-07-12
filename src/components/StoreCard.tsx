@@ -73,7 +73,7 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
           onClick={() => toggleFavStore(store.id)}
           aria-label={fav ? "Unfavorite store" : "Favorite store"}
           aria-pressed={fav}
-          className={`p-1 transition-colors ${fav ? "text-amber-300" : "text-mist-500 hover:text-amber-300"}`}
+          className={`p-1 transition-colors ${fav ? "text-warning" : "text-mist-500 hover:text-warning"}`}
         >
           <Star size={16} aria-hidden="true" className={fav ? "fill-current" : ""} />
         </button>
@@ -124,7 +124,7 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
           {saved ? (
             <button
               onClick={() => { removeFromLibrary(store.id); toast(`${store.name} removed from library`, "info"); }}
-              className="flex items-center gap-1 rounded-none border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 font-medium text-emerald-300 transition-colors hover:border-red-400/40 hover:bg-red-400/10 hover:text-red-300"
+              className="flex items-center gap-1 rounded-none border border-success/40 bg-success/10 px-3 py-1.5 font-medium text-success transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
             >
               <Check size={12} aria-hidden="true" /> In library
             </button>

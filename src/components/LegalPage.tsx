@@ -17,7 +17,7 @@ export function LegalPage({
 }) {
   return (
     <article className="fade-up mx-auto max-w-3xl">
-      <h1 className="text-3xl font-extrabold tracking-tight">
+      <h1 className="font-display text-3xl font-bold tracking-tight">
         {title.split(" ").slice(0, -1).join(" ")} <span className="flow-text">{title.split(" ").slice(-1)}</span>
       </h1>
       <p className="mt-1 text-xs uppercase tracking-[0.15em] text-mist-500">Last updated {updated}</p>
