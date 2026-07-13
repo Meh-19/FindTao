@@ -78,6 +78,24 @@ export function hasMinimumMeasurements(m: Measurements): boolean {
   return m.heightCm != null && m.heightCm > 0 && m.weightKg != null && m.weightKg > 0;
 }
 
+/**
+ * Stable fingerprint of every field that influences a size recommendation —
+ * all canonical measurements plus the fit preference (display `unit` is
+ * irrelevant since values are stored in cm/kg). A saved size call stamps this;
+ * when it still matches, the recommendation can't have changed, so there's no
+ * reason to re-read the chart or recompute. See sizeAdvisor `adviceStatus`.
+ */
+export function measurementKey(m: Measurements): string {
+  return [
+    m.heightCm, m.weightKg, m.chestCm, m.shoulderWidthCm, m.sleeveLengthCm,
+    m.bodyLengthCm, m.neckCm, m.waistCm, m.hipsCm, m.inseamCm, m.thighCm,
+    m.riseCm, m.footLengthCm, m.shoeSizeUs, m.shoeSizeEu, m.shoeSizeUk,
+    m.fitPreference,
+  ]
+    .map((v) => (v == null ? "" : v))
+    .join("|");
+}
+
 export function bmi(heightCm: number, weightKg: number): number {
   const heightM = heightCm / 100;
   return weightKg / (heightM * heightM);

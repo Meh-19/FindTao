@@ -24,6 +24,7 @@ export function AdvisorResult({
   attachable,
   onAttach,
   onReset,
+  resetLabel = "Check another item",
 }: {
   recommendation: Recommendation;
   chart: SizeChart;
@@ -34,6 +35,8 @@ export function AdvisorResult({
   attachable: { id: string; title: string }[];
   onAttach: (itemId: string) => void;
   onReset: () => void;
+  /** Label for the bottom reset button — batch mode advances to the next item instead. */
+  resetLabel?: string;
 }) {
   const [attachId, setAttachId] = useState(attachable[0]?.id ?? "");
   const [attached, setAttached] = useState(false);
@@ -180,7 +183,7 @@ export function AdvisorResult({
           onClick={onReset}
           className="flex items-center gap-1.5 border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
         >
-          <RotateCcw size={14} aria-hidden="true" /> Check another item
+          <RotateCcw size={14} aria-hidden="true" /> {resetLabel}
         </button>
       </div>
     </div>

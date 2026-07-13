@@ -5,7 +5,7 @@ import { Check, Heart, Plus } from "lucide-react";
 import type { CatalogItem } from "@/data/catalog";
 import { itemStore, itemLink } from "@/data/catalog";
 import { Thumb } from "./Thumb";
-import { useStore, type SavedItem } from "@/lib/store";
+import { useStore, duplicateNotice, type SavedItem } from "@/lib/store";
 
 const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
 
@@ -24,7 +24,7 @@ export function catalogToSaved(item: CatalogItem): Omit<SavedItem, "qty"> {
 }
 
 export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: number }) {
-  const { prefs, inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, activeHaul } = useStore();
+  const { prefs, inCart, addToCart, itemLocations, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, activeHaul } = useStore();
   const store = itemStore(item);
   const carted = hydrated && inCart(`cat:${item.id}`);
   const inHaul = hydrated && activeHaul.items.some((i) => i.id === `cat:${item.id}`);
@@ -87,8 +87,9 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
         onClick={() => {
           if (carted) removeFromCart(`cat:${item.id}`);
           else {
+            const notice = duplicateNotice(itemLocations(`cat:${item.id}`));
             addToCart(catalogToSaved(item));
-            toast("Added to cart");
+            toast(notice ?? "Added to cart", notice ? "info" : "success");
           }
         }}
         aria-label={carted ? "Remove from cart" : "Add to cart"}

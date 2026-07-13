@@ -14,7 +14,7 @@ import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
 import type { StoreCategory, StoreInfo } from "@/data/stores";
 import type { CatalogItem, Category } from "@/data/catalog";
 import { EMPTY_MEASUREMENTS, type Measurements } from "./measurements";
-import type { SizeAdvice } from "./sizeAdvisor";
+import type { ChartRow, GarmentType, SizeAdvice, SizeChart } from "./sizeAdvisor";
 
 export interface TagDef {
   id: number;
@@ -173,23 +173,75 @@ export function shareableStores(items: SavedItem[]): { id: string; name: string 
   return [...seen].map(([id, name]) => ({ id, name }));
 }
 
+/** Where an item id already lives across the cart and hauls. */
+export interface ItemLocations {
+  inCart: boolean;
+  haulNames: string[];
+}
+
+/**
+ * Phrase a "you already have this" notice for the moment an item is added,
+ * or null when it's genuinely new (so the caller shows its normal "added"
+ * toast). Computed from the item's locations *before* the add.
+ */
+export function duplicateNotice(loc: ItemLocations): string | null {
+  const quoted = loc.haulNames.map((n) => `“${n}”`);
+  const haulList =
+    quoted.length === 0
+      ? ""
+      : quoted.length === 1
+        ? quoted[0]
+        : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
+  const haulWord = loc.haulNames.length > 1 ? "hauls" : "haul";
+  if (loc.inCart && haulList) return `Already in your cart and ${haulWord} ${haulList} — quantity bumped`;
+  if (loc.inCart) return "Already in your cart — quantity bumped";
+  if (haulList) return `Heads up — this is already in ${haulWord} ${haulList}`;
+  return null;
+}
+
+function toGarmentType(v: unknown): GarmentType {
+  return v === "top" || v === "bottom" || v === "outerwear" || v === "footwear" ? v : "unknown";
+}
+
+/** Validate a cached SizeChart from persisted advice — keep only numeric measurement fields on each row. */
+function sanitizeChartData(value: unknown): SizeChart | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const v = value as { garmentType?: unknown; rows?: unknown };
+  if (!Array.isArray(v.rows)) return undefined;
+  const rows: ChartRow[] = [];
+  for (const raw of v.rows) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.size !== "string" || !r.size.trim()) continue;
+    const row: ChartRow = { size: r.size.trim() };
+    for (const [k, val] of Object.entries(r)) {
+      if (k === "size") continue;
+      if (typeof val === "number" && Number.isFinite(val)) (row as unknown as Record<string, number>)[k] = val;
+    }
+    rows.push(row);
+  }
+  if (rows.length === 0) return undefined;
+  return { garmentType: toGarmentType(v.garmentType), rows };
+}
+
 function sanitizeAdvice(value: unknown): SizeAdvice | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   const r = value as Partial<SizeAdvice>;
   if (typeof r.size !== "string") return undefined;
   const confidence = r.confidence === "high" || r.confidence === "medium" || r.confidence === "low" ? r.confidence : "low";
-  const garmentType =
-    r.garmentType === "top" || r.garmentType === "bottom" || r.garmentType === "outerwear" || r.garmentType === "footwear"
-      ? r.garmentType
-      : "unknown";
+  const garmentType = toGarmentType(r.garmentType);
   const fitPreference =
     r.fitPreference === "slim" || r.fitPreference === "relaxed" || r.fitPreference === "oversized" ? r.fitPreference : "regular";
+  const chart = sanitizeChartData(r.chart);
+  const measureKey = typeof r.measureKey === "string" ? r.measureKey : undefined;
   return {
     size: r.size,
     confidence,
     garmentType,
     fitPreference,
     at: typeof r.at === "number" && Number.isFinite(r.at) ? r.at : Date.now(),
+    ...(chart ? { chart } : {}),
+    ...(measureKey ? { measureKey } : {}),
   };
 }
 
@@ -377,6 +429,8 @@ interface Store {
   cartOpen: boolean;
   setCartOpen: (open: boolean) => void;
   inCart: (id: string) => boolean;
+  /** Where an item id already lives (cart + hauls) — powers duplicate-add warnings. */
+  itemLocations: (id: string) => ItemLocations;
   addToCart: (item: Omit<SavedItem, "qty">, qty?: number) => void;
   setCartQty: (id: string, qty: number) => void;
   removeFromCart: (id: string) => void;
@@ -1153,6 +1207,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cartOpen,
       setCartOpen,
       inCart: (id) => cart.some((l) => l.id === id),
+      itemLocations: (id) => ({
+        inCart: cart.some((l) => l.id === id),
+        haulNames: hauls.filter((h) => h.items.some((i) => i.id === id)).map((h) => h.name),
+      }),
       addToCart,
       setCartQty,
       removeFromCart,

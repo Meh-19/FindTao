@@ -22,7 +22,7 @@ interface AlbumSummary {
   cover: string | null;
 }
 
-interface Target {
+export interface Target {
   host: string;
   albumId: string;
   storeId: string | null;
@@ -265,7 +265,17 @@ function AlbumBrowser({
  * in the cart/a haul, a full store browsed to find the exact garment, or a
  * specific album URL pasted directly (skips straight to the photo grid).
  */
-export function ChartPicker({ onPick }: { onPick: (selection: ChartSelection) => void }) {
+export function ChartPicker({
+  onPick,
+  initialTarget,
+  lockTarget = false,
+}: {
+  onPick: (selection: ChartSelection) => void;
+  /** When set, skip store/album selection and open straight to this album's photo grid (used by the batch advisor). */
+  initialTarget?: Target;
+  /** Hide the "Back" escape from the photo grid — the batch flow owns navigation instead. */
+  lockTarget?: boolean;
+}) {
   const { allStores, library } = useStore();
   const libraryYupooStores = useMemo(
     () => allStores.filter((s) => library.includes(s.id) && /\.x\.yupoo\.com/i.test(s.url)),
@@ -277,7 +287,7 @@ export function ChartPicker({ onPick }: { onPick: (selection: ChartSelection) =>
   const [error, setError] = useState<string | null>(null);
 
   const [browsing, setBrowsing] = useState<{ host: string; storeId: string | null; storeName: string } | null>(null);
-  const [target, setTarget] = useState<Target | null>(null);
+  const [target, setTarget] = useState<Target | null>(initialTarget ?? null);
   const [photos, setPhotos] = useState<string[] | null>(null);
   const [photosError, setPhotosError] = useState<string | null>(null);
 
@@ -343,12 +353,14 @@ export function ChartPicker({ onPick }: { onPick: (selection: ChartSelection) =>
           <p className="text-sm text-mist-300">
             Tap the photo that shows the <span className="font-semibold text-mist-100">size chart</span>
           </p>
-          <button
-            onClick={() => setTarget(null)}
-            className="text-xs text-mist-500 underline decoration-ink-500 hover:text-mist-300"
-          >
-            Back
-          </button>
+          {!lockTarget && (
+            <button
+              onClick={() => setTarget(null)}
+              className="text-xs text-mist-500 underline decoration-ink-500 hover:text-mist-300"
+            >
+              Back
+            </button>
+          )}
         </div>
 
         {photosError ? (

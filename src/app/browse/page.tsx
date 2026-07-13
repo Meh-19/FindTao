@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, Heart } from "lucide-react";
 import { itemStore } from "@/data/catalog";
 import { ItemCard } from "@/components/ItemCard";
+import { LibraryAlbumSearch } from "@/components/LibraryAlbumSearch";
 import { LinkPreview } from "@/components/LinkPreview";
 import { parseLink } from "@/lib/links";
 import type { Marketplace } from "@/lib/links";
@@ -81,7 +82,7 @@ function SearchView() {
           Search <span className="flow-text">everything</span>
         </h1>
         <p className="mt-1 text-sm text-mist-400">
-          Cross-store search over your catalog — or paste any marketplace / agent link.
+          Search the catalog and your followed stores&apos; live albums at once — or paste any marketplace / agent link.
         </p>
       </div>
 
@@ -171,6 +172,8 @@ function SearchView() {
           ))}
         </div>
       )}
+
+      <LibraryAlbumSearch query={query} />
     </div>
   );
 }

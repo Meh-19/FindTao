@@ -13,7 +13,7 @@ import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { StoreAvatar } from "./StoreAvatar";
 import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
-import { useStore } from "@/lib/store";
+import { useStore, duplicateNotice } from "@/lib/store";
 
 async function fetchAlbums(
   host: string,
@@ -133,7 +133,7 @@ function MarketplacePreview({
 export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
-    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart, catalogItems,
+    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart, itemLocations, catalogItems,
     inCart, activeHaul, priceOverrides, setPriceOverride, storeSeen, markStoreSeen,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
@@ -564,6 +564,7 @@ export function StoreView({ id }: { id: string }) {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              const notice = duplicateNotice(itemLocations(`album:${yupooHost}:${album.yupooId}`));
                               addToCart({
                                 id: `album:${yupooHost}:${album.yupooId}`,
                                 title: album.name,
@@ -574,7 +575,7 @@ export function StoreView({ id }: { id: string }) {
                                 storeName: store!.name,
                                 url: null,
                               });
-                              toast(`Added ${album.name.slice(0, 40)} to cart`);
+                              toast(notice ?? `Added ${album.name.slice(0, 40)} to cart`, notice ? "info" : "success");
                             }}
                             aria-label={`Quick add ${album.name} to cart`}
                             className="flex items-center gap-1 rounded-none border border-white/15 bg-ink-950/90 px-2 py-1.5 text-white/90 shadow-hard-sm transition-all duration-150 hover:bg-ink-950 hover:text-white"

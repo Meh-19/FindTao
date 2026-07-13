@@ -1,12 +1,14 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  ExternalLink, Globe, ImageOff, Lock, Pencil, Plus, Share2, X,
+  ChevronDown, ExternalLink, Globe, ImageOff, Lock, Pencil, Plus, Ruler, Share2, X,
 } from "lucide-react";
 import { SignInButton } from "@clerk/nextjs";
 import { AdviceBadge } from "@/components/AdviceBadge";
+import { AdviceDetail } from "@/components/AdviceDetail";
 import { CopyButton } from "@/components/CopyButton";
 import { HaulPreview } from "@/components/HaulPreview";
 import { SharePicker } from "@/components/SharePicker";
@@ -14,7 +16,71 @@ import { formatMoney } from "@/lib/currency";
 import { parseLink, toAgentUrl } from "@/lib/links";
 import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { proxiedImg } from "@/lib/yupoo";
-import { useStore, haulStats, shareableStores, HAUL_UNIT_WEIGHT_G, type Haul } from "@/lib/store";
+import { useStore, haulStats, shareableStores, HAUL_UNIT_WEIGHT_G, type Haul, type SavedItem } from "@/lib/store";
+
+/** One haul line — expandable to reveal the saved AI size call's full breakdown (see AdviceDetail). */
+function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
+  const { removeFromHaul, measurements } = useStore();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-none border border-white/5 bg-ink-900/60">
+      <div className="flex items-center gap-3 p-2">
+        {item.image && item.imgHost ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={proxiedImg(item.image, item.imgHost)}
+            alt=""
+            loading="lazy"
+            className="h-10 w-12 shrink-0 rounded-none border border-white/5 object-cover"
+          />
+        ) : (
+          <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
+            <ImageOff size={13} aria-hidden="true" />
+          </span>
+        )}
+        <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
+          {item.title}
+        </p>
+        {item.advice && (
+          <button
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-label={open ? "Hide size details" : "Show size details"}
+            className="flex items-center gap-0.5 transition-opacity hover:opacity-80"
+          >
+            <AdviceBadge advice={item.advice} />
+            <ChevronDown
+              size={12}
+              aria-hidden="true"
+              className={`text-mist-500 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </button>
+        )}
+        {item.qty > 1 && (
+          <span className="rounded-none bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
+            ×{item.qty}
+          </span>
+        )}
+        <span className="text-[11px] tabular-nums text-mist-500">
+          {item.priceCny !== null ? formatMoney(item.priceCny * item.qty, "CNY") : "—"}
+        </span>
+        <button
+          onClick={() => removeFromHaul(haulId, item.id)}
+          aria-label="Remove from haul"
+          className="rounded px-1.5 py-1 text-mist-500 hover:text-danger"
+        >
+          <X size={14} aria-hidden="true" />
+        </button>
+      </div>
+      {open && item.advice && (
+        <div className="border-t border-white/5 p-3">
+          <AdviceDetail advice={item.advice} measurements={measurements} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
@@ -28,6 +94,8 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const items = haul.items;
   const { unitCount, totalCny } = haulStats(items);
   const unpricedCount = items.filter((i) => i.priceCny === null).length;
+  // Album-backed items are the ones the AI Advisor can size (they carry a chart source).
+  const sizable = items.some((i) => i.id.startsWith("album:"));
   const totalWeight = unitCount * HAUL_UNIT_WEIGHT_G;
   const active = prefs.activeHaulId === haul.id;
   const overBudget = haul.budgetCny !== null && totalCny > haul.budgetCny;
@@ -188,43 +256,19 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
           )}
         </div>
 
+        {sizable && (
+          <Link
+            href={`/advisor?haul=${haul.id}`}
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-xs font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+          >
+            <Ruler size={13} aria-hidden="true" /> Size this haul with the advisor
+          </Link>
+        )}
+
         {items.length > 0 && (
           <div className="mt-4 space-y-2">
             {items.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 rounded-none border border-white/5 bg-ink-900/60 p-2">
-                {item.image && item.imgHost ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={proxiedImg(item.image, item.imgHost)}
-                    alt=""
-                    loading="lazy"
-                    className="h-10 w-12 shrink-0 rounded-none border border-white/5 object-cover"
-                  />
-                ) : (
-                  <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
-                    <ImageOff size={13} aria-hidden="true" />
-                  </span>
-                )}
-                <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
-                  {item.title}
-                </p>
-                {item.advice && <AdviceBadge advice={item.advice} />}
-                {item.qty > 1 && (
-                  <span className="rounded-none bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
-                    ×{item.qty}
-                  </span>
-                )}
-                <span className="text-[11px] tabular-nums text-mist-500">
-                  {item.priceCny !== null ? formatMoney(item.priceCny * item.qty, "CNY") : "—"}
-                </span>
-                <button
-                  onClick={() => removeFromHaul(haul.id, item.id)}
-                  aria-label="Remove from haul"
-                  className="rounded px-1.5 py-1 text-mist-500 hover:text-danger"
-                >
-                  <X size={14} aria-hidden="true" />
-                </button>
-              </div>
+              <HaulItem key={item.id} item={item} haulId={haul.id} />
             ))}
             <CopyButton text={exportText} label={`Copy ${items.length} ${agent.name} links`} className="mt-1 w-full py-2" />
           </div>

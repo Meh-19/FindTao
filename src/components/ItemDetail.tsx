@@ -10,7 +10,7 @@ import { AgentActions } from "./AgentActions";
 import { StoreAvatar } from "./StoreAvatar";
 import { CopyButton } from "./CopyButton";
 import { catalogToSaved } from "./ItemCard";
-import { useStore } from "@/lib/store";
+import { useStore, duplicateNotice } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 
 const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
@@ -84,7 +84,7 @@ function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; o
 }
 
 export function ItemDetail({ id }: { id: string }) {
-  const { inCart, addToCart, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, catalogItems, allStores } = useStore();
+  const { inCart, addToCart, itemLocations, removeFromCart, wishlist, toggleWishlist, hydrated, fmtCny, toast, catalogItems, allStores } = useStore();
   const item = catalogItems.find((i) => i.id === id);
   const [qcOpen, setQcOpen] = useState<number | null>(null);
 
@@ -194,8 +194,9 @@ export function ItemDetail({ id }: { id: string }) {
                 onClick={() => {
                   if (carted) removeFromCart(`cat:${item.id}`);
                   else {
+                    const notice = duplicateNotice(itemLocations(`cat:${item.id}`));
                     addToCart(catalogToSaved(item));
-                    toast("Added to cart");
+                    toast(notice ?? "Added to cart", notice ? "info" : "success");
                   }
                 }}
                 aria-pressed={carted}

@@ -1,5 +1,5 @@
-import type { FitPreference } from "./measurements";
-import { type EstimatedField, type ResolvedField } from "./measurements";
+import type { FitPreference, Measurements } from "./measurements";
+import { measurementKey, type EstimatedField, type ResolvedField } from "./measurements";
 
 export type GarmentType = "top" | "bottom" | "outerwear" | "footwear" | "unknown";
 
@@ -221,6 +221,29 @@ export interface SizeAdvice {
   fitPreference: FitPreference;
   /** When it was computed (epoch ms) — lets the UI show "based on an older run" later if needed. */
   at: number;
+  /**
+   * The confirmed chart this size came from. Cached so the size detail can be
+   * shown later, and so a measurement change can be re-scored locally without
+   * paying for another AI chart read. Absent on advice saved before this existed.
+   */
+  chart?: SizeChart;
+  /** Fingerprint of the measurements + fit that produced `size` (see measurementKey). */
+  measureKey?: string;
+}
+
+export type AdviceStatus = "current" | "recomputable" | "missing";
+
+/**
+ * How a saved size call relates to the shopper's *current* measurements:
+ * - `current`      — measurements/fit unchanged since it was computed; nothing to do, and re-reading the chart would waste an AI call.
+ * - `recomputable` — measurements changed, but we cached the chart, so a fresh size can be scored locally for free (no AI).
+ * - `missing`      — no saved advice, or it predates chart caching, so a real AI read is needed.
+ */
+export function adviceStatus(advice: SizeAdvice | undefined, m: Measurements): AdviceStatus {
+  if (!advice) return "missing";
+  if (advice.measureKey != null && advice.measureKey === measurementKey(m)) return "current";
+  if (advice.chart) return "recomputable";
+  return "missing";
 }
 
 export function confidenceFor(score: SizeScore): Confidence {

@@ -8,7 +8,7 @@ import type { StoreInfo } from "@/data/stores";
 import { parseLink } from "@/lib/links";
 import { parsePriceCnyDetailed } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
-import { useStore } from "@/lib/store";
+import { useStore, duplicateNotice } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
@@ -32,7 +32,7 @@ export function AlbumModal({
   host: string | null;
   onClose: () => void;
 }) {
-  const { addToCart, fmtConverted, toast, priceOverrides } = useStore();
+  const { addToCart, itemLocations, fmtConverted, toast, priceOverrides } = useStore();
   const [viewer, setViewer] = useState<number | null>(null);
   const [qty, setQty] = useState(1);
   const live = Boolean(host && album.yupooId);
@@ -224,6 +224,7 @@ export function AlbumModal({
                 </div>
                 <button
                   onClick={() => {
+                    const notice = duplicateNotice(itemLocations(`album:${host}:${album.yupooId}`));
                     addToCart(
                       {
                         id: `album:${host}:${album.yupooId}`,
@@ -237,7 +238,7 @@ export function AlbumModal({
                       },
                       qty,
                     );
-                    toast(`Added ${qty} × ${album.name.slice(0, 40)} to cart`);
+                    toast(notice ?? `Added ${qty} × ${album.name.slice(0, 40)} to cart`, notice ? "info" : "success");
                     setQty(1);
                   }}
                   className="btn-glow flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-none px-4 py-2 text-sm font-semibold text-white"

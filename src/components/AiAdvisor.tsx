@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, Loader2, Maximize2, Ruler, Sparkles } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { AlertTriangle, CheckCircle2, Layers, Loader2, Maximize2, Ruler, SkipForward, Sparkles, X } from "lucide-react";
+import { useStore, type SavedItem } from "@/lib/store";
 import { proxiedImg } from "@/lib/yupoo";
 import {
   EMPTY_MEASUREMENTS,
@@ -12,14 +13,17 @@ import {
   inToCm,
   kgToLb,
   lbToKg,
+  measurementKey,
   resolveFootLength,
   resolveMeasurements,
   type FitPreference,
   type Measurements,
 } from "@/lib/measurements";
 import {
+  adviceStatus,
   detectReviewBias,
   recommendSize,
+  type AdviceStatus,
   type Recommendation,
   type ReviewSignal,
   type SizeAdvice,
@@ -375,9 +379,91 @@ function ChartReview({
   );
 }
 
-/** Build the persistable size call from a recommendation + the confirmed chart. */
-function adviceFrom(rec: Recommendation, chart: SizeChart, fitPreference: SizeAdvice["fitPreference"]): SizeAdvice {
-  return { size: rec.size, confidence: rec.confidence, garmentType: chart.garmentType, fitPreference, at: Date.now() };
+/**
+ * Build the persistable size call from a recommendation + the confirmed chart.
+ * Stamps the chart and a measurement fingerprint so the size can be shown in
+ * detail later and re-scored without another AI read if measurements change.
+ */
+function adviceFrom(rec: Recommendation, chart: SizeChart, measurements: Measurements): SizeAdvice {
+  return {
+    size: rec.size,
+    confidence: rec.confidence,
+    garmentType: chart.garmentType,
+    fitPreference: measurements.fitPreference,
+    at: Date.now(),
+    chart,
+    measureKey: measurementKey(measurements),
+  };
+}
+
+const ALBUM_ID_RE = /^album:([a-z0-9-]+):(\d+)$/i;
+
+/** One item in a batch-sizing run — a haul item that carries a Yupoo host + album id. */
+interface BatchItem {
+  itemId: string;
+  title: string;
+  host: string;
+  albumId: string;
+  storeId: string | null;
+  storeName: string;
+}
+
+interface BatchState {
+  haulName: string;
+  items: BatchItem[];
+  /** Pointer into items; === items.length once the run is finished. */
+  index: number;
+  /** itemIds that got a size saved (vs skipped) — for the closing summary. */
+  sized: string[];
+}
+
+/** Distinct album-backed items from a haul — the only ones the advisor can size (they carry a chart source). */
+function albumItemsOf(items: SavedItem[]): BatchItem[] {
+  const out: BatchItem[] = [];
+  const seen = new Set<string>();
+  for (const i of items) {
+    const m = i.id.match(ALBUM_ID_RE);
+    if (!m || seen.has(i.id)) continue;
+    seen.add(i.id);
+    out.push({ itemId: i.id, title: i.title, host: m[1], albumId: m[2], storeId: i.storeId || null, storeName: i.storeName });
+  }
+  return out;
+}
+
+/** Entry card on the picker screen: kick off a back-to-back sizing run over a haul. */
+function BatchStart({
+  hauls,
+  onStart,
+}: {
+  hauls: { id: string; name: string; count: number }[];
+  onStart: (haulId: string) => void;
+}) {
+  return (
+    <div className="mb-5 border border-white/10 bg-ink-800/80 p-4">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-mist-100">
+        <Layers size={14} aria-hidden="true" className="text-neon-300" /> Size a whole haul at once
+      </p>
+      <p className="mt-0.5 text-xs text-mist-500">
+        Walk through every item in a haul back-to-back — each size call saves straight onto the item.
+      </p>
+      <div className="mt-3 space-y-1.5">
+        {hauls.map((h) => (
+          <div key={h.id} className="flex items-center gap-3 border border-white/5 bg-ink-900/60 px-3 py-2">
+            <span className="min-w-0 flex-1 truncate text-sm text-mist-100">{h.name}</span>
+            <span className="shrink-0 text-xs text-mist-500">
+              {h.count} item{h.count === 1 ? "" : "s"}
+            </span>
+            <button
+              onClick={() => onStart(h.id)}
+              className="btn-glow shrink-0 rounded-none px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              Size all
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function AiAdvisor() {
@@ -388,11 +474,25 @@ export function AiAdvisor() {
   const [reviewSignal, setReviewSignal] = useState<ReviewSignal | null>(null);
   // Whether the last confirmed chart's size auto-saved onto an existing cart/haul line.
   const [autoSaved, setAutoSaved] = useState(false);
+  // Active back-to-back "size a whole haul" run, or null for the normal one-off flow.
+  const [batch, setBatch] = useState<BatchState | null>(null);
+  // When the current result reused saved data instead of a fresh AI scan, how it related to the current measurements.
+  const [reused, setReused] = useState<AdviceStatus | null>(null);
+  // Items the shopper deliberately chose to re-scan with AI despite already having saved data.
+  const [forcedItems, setForcedItems] = useState<Set<string>>(() => new Set());
+  const haulParam = useSearchParams().get("haul");
 
   const resolved = useMemo(
     () => ({ ...resolveMeasurements(measurements), footLengthCm: resolveFootLength(measurements) }),
     [measurements],
   );
+
+  /** The saved size call for an item id, wherever it lives (cart or any haul). */
+  function findAdvice(itemId: string): SizeAdvice | undefined {
+    for (const l of cart) if (l.id === itemId && l.advice) return l.advice;
+    for (const h of hauls) for (const i of h.items) if (i.id === itemId && i.advice) return i.advice;
+    return undefined;
+  }
 
   // Album-backed items already in the cart or a haul — targets for attaching a size call.
   const attachable = useMemo(() => {
@@ -403,8 +503,95 @@ export function AiAdvisor() {
     return [...byId].map(([id, title]) => ({ id, title }));
   }, [cart, hauls]);
 
-  async function handlePick(selection: ChartSelection) {
+  // Hauls that hold at least one sizable (album-backed) item — the batch menu.
+  const haulsWithAlbums = useMemo(
+    () => hauls.map((h) => ({ id: h.id, name: h.name, count: albumItemsOf(h.items).length })).filter((h) => h.count > 0),
+    [hauls],
+  );
+
+  const curBatchItem = batch && batch.index < batch.items.length ? batch.items[batch.index] : null;
+  const batchComplete = batch !== null && batch.index >= batch.items.length;
+
+  function startBatch(haulId: string) {
+    const haul = hauls.find((h) => h.id === haulId);
+    const items = haul ? albumItemsOf(haul.items) : [];
+    if (!haul || items.length === 0) {
+      toast("That haul has no album-based items to size", "error");
+      return;
+    }
+    setBatch({ haulName: haul.name, items, index: 0, sized: [] });
+    setForcedItems(new Set());
+    setStage({ kind: "picking" });
     setAnalyzeError(null);
+    setReviewSignal(null);
+    setAutoSaved(false);
+    setReused(null);
+  }
+
+  /** Move to the next item (optionally recording the current one as sized), or finish the run. */
+  function advanceBatch(sizedItemId?: string) {
+    setBatch((b) =>
+      b ? { ...b, index: b.index + 1, sized: sizedItemId ? [...b.sized, sizedItemId] : b.sized } : b,
+    );
+    setStage({ kind: "picking" });
+    setReviewSignal(null);
+    setAutoSaved(false);
+    setAnalyzeError(null);
+    setReused(null);
+  }
+
+  function exitBatch() {
+    setBatch(null);
+    setForcedItems(new Set());
+    setStage({ kind: "picking" });
+    setReviewSignal(null);
+    setAutoSaved(false);
+    setAnalyzeError(null);
+    setReused(null);
+  }
+
+  // Deep link: /advisor?haul=<id> starts a batch run for that haul once hydrated.
+  useEffect(() => {
+    if (!hydrated || !haulParam || batch) return;
+    startBatch(haulParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, haulParam]);
+
+  // Batch: if the current item already has chart data for these measurements,
+  // skip the photo grid and the paid AI read entirely — reuse (or re-score) the
+  // saved chart. Only a deliberate "Re-scan with AI" (forcedItems) overrides this.
+  useEffect(() => {
+    if (!batch || !curBatchItem || stage.kind !== "picking") return;
+    if (forcedItems.has(curBatchItem.itemId)) return;
+    const existing = findAdvice(curBatchItem.itemId);
+    const status = existing?.chart ? adviceStatus(existing, measurements) : "missing";
+    if (existing?.chart && status !== "missing") {
+      setReused(status);
+      handleConfirmChart(existing.chart, {
+        host: curBatchItem.host,
+        albumId: curBatchItem.albumId,
+        storeId: curBatchItem.storeId,
+        storeName: curBatchItem.storeName,
+        photoUrl: "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batch?.index, stage.kind]);
+
+  async function handlePick(selection: ChartSelection, force = false) {
+    setAnalyzeError(null);
+    const itemId = `album:${selection.host}:${selection.albumId}`;
+    // Reuse saved chart data instead of paying for another AI read, unless this
+    // item was explicitly flagged for a re-scan.
+    const skipReuse = force || forcedItems.has(itemId);
+    const existing = skipReuse ? undefined : findAdvice(itemId);
+    const status = existing?.chart ? adviceStatus(existing, measurements) : "missing";
+    if (existing?.chart && status !== "missing") {
+      setReused(status);
+      handleConfirmChart(existing.chart, selection);
+      return;
+    }
+    setReused(null);
     setStage({ kind: "analyzing", selection });
     try {
       const res = await fetch("/api/advisor/analyze-chart", {
@@ -441,13 +628,24 @@ export function AiAdvisor() {
     const itemId = `album:${selection.host}:${selection.albumId}`;
     const exists = cart.some((l) => l.id === itemId) || hauls.some((h) => h.items.some((i) => i.id === itemId));
     if (rec && exists) {
-      setItemAdvice(itemId, adviceFrom(rec, chart, measurements.fitPreference));
+      setItemAdvice(itemId, adviceFrom(rec, chart, measurements));
       setAutoSaved(true);
       toast(`Saved size ${rec.size} to your haul item`);
     } else {
       setAutoSaved(false);
     }
     setStage({ kind: "done", selection, chart });
+  }
+
+  /** Force a paid AI re-read of the current item's chart, overriding the reuse of saved data. */
+  function rescan(selection: ChartSelection) {
+    setReused(null);
+    if (batch && curBatchItem) {
+      setForcedItems((s) => new Set(s).add(curBatchItem.itemId));
+      setStage({ kind: "picking" });
+    } else {
+      handlePick(selection, true);
+    }
   }
 
   if (!hydrated) return null;
@@ -485,7 +683,72 @@ export function AiAdvisor() {
         </p>
       )}
 
-      {stage.kind === "picking" && <ChartPicker onPick={handlePick} />}
+      {batch && !batchComplete && curBatchItem && (
+        <div className="mb-4 border border-neon-500/30 bg-neon-600/10 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-mist-100">
+              <Layers size={13} aria-hidden="true" className="text-neon-300" />
+              Sizing “{batch.haulName}” — item {batch.index + 1} of {batch.items.length}
+            </p>
+            <div className="flex items-center gap-3">
+              {stage.kind !== "done" && (
+                <button
+                  onClick={() => advanceBatch()}
+                  className="flex items-center gap-1 text-xs text-mist-400 transition-colors hover:text-mist-100"
+                >
+                  <SkipForward size={12} aria-hidden="true" /> Skip
+                </button>
+              )}
+              <button
+                onClick={exitBatch}
+                className="flex items-center gap-1 text-xs text-mist-500 transition-colors hover:text-danger"
+              >
+                <X size={12} aria-hidden="true" /> Exit
+              </button>
+            </div>
+          </div>
+          <p className="mt-1 truncate text-xs text-mist-400" title={curBatchItem.title}>
+            {curBatchItem.title}
+          </p>
+          <div className="mt-2 h-1 overflow-hidden bg-ink-600">
+            <div className="flow-bg h-full transition-all" style={{ width: `${(batch.index / batch.items.length) * 100}%` }} />
+          </div>
+        </div>
+      )}
+
+      {batchComplete && batch && (
+        <div className="border border-white/10 bg-ink-800/80 p-6 text-center">
+          <CheckCircle2 size={26} aria-hidden="true" className="mx-auto text-success" />
+          <p className="mt-2 text-lg font-bold text-mist-100">Done sizing “{batch.haulName}”</p>
+          <p className="mt-1 text-sm text-mist-400">
+            Saved a size on {batch.sized.length} of {batch.items.length} item{batch.items.length === 1 ? "" : "s"}
+            {batch.sized.length < batch.items.length ? " — the rest were skipped." : "."} Each one shows on its cart &amp; haul line.
+          </p>
+          <button onClick={exitBatch} className="btn-glow mt-4 rounded-none px-4 py-2 text-sm font-semibold text-white">
+            Back to advisor
+          </button>
+        </div>
+      )}
+
+      {stage.kind === "picking" && !batchComplete &&
+        (batch && curBatchItem ? (
+          <ChartPicker
+            key={curBatchItem.itemId}
+            onPick={handlePick}
+            initialTarget={{
+              host: curBatchItem.host,
+              albumId: curBatchItem.albumId,
+              storeId: curBatchItem.storeId,
+              storeName: curBatchItem.storeName,
+            }}
+            lockTarget
+          />
+        ) : (
+          <>
+            {haulsWithAlbums.length > 0 && <BatchStart hauls={haulsWithAlbums} onStart={startBatch} />}
+            <ChartPicker onPick={handlePick} />
+          </>
+        ))}
 
       {stage.kind === "analyzing" && (
         <div className="flex flex-col items-center gap-3 border border-dashed border-ink-500 py-16 text-sm text-mist-400">
@@ -503,6 +766,23 @@ export function AiAdvisor() {
         />
       )}
 
+      {stage.kind === "done" && reused && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border border-neon-500/30 bg-neon-600/10 px-4 py-2.5 text-xs text-mist-300">
+          <Sparkles size={13} aria-hidden="true" className="shrink-0 text-neon-300" />
+          <span className="flex-1">
+            {reused === "current"
+              ? "You already sized this and your measurements haven’t changed — reused your saved result, no AI scan spent."
+              : "Re-scored from your saved chart against your updated measurements — no new AI scan spent."}
+          </span>
+          <button
+            onClick={() => rescan(stage.selection)}
+            className="shrink-0 border border-ink-500 px-2.5 py-1 font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+          >
+            Re-scan with AI
+          </button>
+        </div>
+      )}
+
       {stage.kind === "done" &&
         (recommendation ? (
           <AdvisorResult
@@ -512,25 +792,37 @@ export function AiAdvisor() {
             autoSaved={autoSaved}
             attachable={attachable}
             onAttach={(itemId) => {
-              setItemAdvice(itemId, adviceFrom(recommendation, stage.chart, measurements.fitPreference));
+              setItemAdvice(itemId, adviceFrom(recommendation, stage.chart, measurements));
               setAutoSaved(true);
               toast(`Saved size ${recommendation.size} to your haul item`);
             }}
             onReset={() => {
-              setStage({ kind: "picking" });
-              setReviewSignal(null);
-              setAutoSaved(false);
+              if (batch && curBatchItem) {
+                advanceBatch(curBatchItem.itemId);
+              } else {
+                setStage({ kind: "picking" });
+                setReviewSignal(null);
+                setAutoSaved(false);
+                setReused(null);
+              }
             }}
+            resetLabel={
+              batch
+                ? batch.index + 1 >= batch.items.length
+                  ? "Finish — see summary"
+                  : "Save & next item →"
+                : "Check another item"
+            }
           />
         ) : (
           <div className="border border-dashed border-ink-500 px-4 py-10 text-center text-sm text-mist-400">
             None of the chart's columns overlap with measurements you've entered — add more measurements above, or try
             a chart with different columns.
             <button
-              onClick={() => setStage({ kind: "picking" })}
+              onClick={() => (batch && curBatchItem ? advanceBatch() : setStage({ kind: "picking" }))}
               className="mt-3 block w-full border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
             >
-              Try another photo
+              {batch ? "Skip to next item" : "Try another photo"}
             </button>
           </div>
         ))}
