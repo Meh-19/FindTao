@@ -9,11 +9,23 @@ import { storeAlbums, type Album } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
 import { parsePriceCnyDetailed, type ParsedPrice } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
-import { proxiedImg, type YupooAlbumsResponse } from "@/lib/yupoo";
+import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
+import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { StoreAvatar } from "./StoreAvatar";
 import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
 import { useStore, duplicateNotice } from "@/lib/store";
+
+/** Map a raw scraped Yupoo album (the API/cache shape) to the local Album model. */
+function toAlbum(a: YupooAlbum, hue: [string, string]): Album {
+  return { id: `yupoo-${a.id}`, yupooId: a.id, name: a.title, photoCount: a.count, cover: a.cover, hue };
+}
+
+/** Cached shape of a store's first page of albums. */
+interface AlbumsCache {
+  albums: YupooAlbum[];
+  hasMore: boolean;
+}
 
 async function fetchAlbums(
   host: string,
@@ -24,14 +36,7 @@ async function fetchAlbums(
   if (!res.ok) throw new Error("albums fetch failed");
   const data = (await res.json()) as YupooAlbumsResponse;
   return {
-    albums: (data.albums ?? []).map((a) => ({
-      id: `yupoo-${a.id}`,
-      yupooId: a.id,
-      name: a.title,
-      photoCount: a.count,
-      cover: a.cover,
-      hue,
-    })),
+    albums: (data.albums ?? []).map((a) => toAlbum(a, hue)),
     hasMore: data.hasMore ?? false,
   };
 }
@@ -156,20 +161,38 @@ export function StoreView({ id }: { id: string }) {
   useEffect(() => {
     if (!yupooHost || !store) return;
     let cancelled = false;
-    setLiveAlbums(null);
     setLiveFailed(false);
     setPage(1);
-    fetchAlbums(yupooHost, 1, store.hue)
-      .then(({ albums, hasMore }) => {
+
+    // Instant paint from the local cache when we have a recent copy; otherwise
+    // fall to the loading skeleton until the fetch below lands.
+    const cached = cacheGet<AlbumsCache>("alb", yupooHost);
+    if (cached) {
+      setLiveAlbums(cached.albums.map((a) => toAlbum(a, store.hue)));
+      setHasMore(cached.hasMore);
+    } else {
+      setLiveAlbums(null);
+    }
+
+    // Always revalidate in the background so the cache stays fresh (SWR).
+    fetch(`/api/yupoo/albums?host=${encodeURIComponent(yupooHost)}&page=1`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: YupooAlbumsResponse) => {
         if (cancelled) return;
-        setLiveAlbums(albums);
-        setHasMore(hasMore);
-        if (albums.length === 0) setLiveFailed(true);
+        const list = data.albums ?? [];
+        setLiveAlbums(list.map((a) => toAlbum(a, store.hue)));
+        setHasMore(data.hasMore ?? false);
+        if (list.length === 0 && !cached) setLiveFailed(true);
+        cacheSet<AlbumsCache>("alb", yupooHost, { albums: list, hasMore: data.hasMore ?? false }, CACHE_TTL.albums);
       })
       .catch(() => {
         if (cancelled) return;
-        setLiveAlbums([]);
-        setLiveFailed(true);
+        // A failed revalidation shouldn't blank a cached list — only fail hard
+        // when we had nothing to show.
+        if (!cached) {
+          setLiveAlbums([]);
+          setLiveFailed(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -266,7 +289,23 @@ export function StoreView({ id }: { id: string }) {
 
   useEffect(() => {
     if (!yupooHost) return;
-    const toFetch = albums.filter((a) => a.yupooId && !requestedRef.current.has(a.id));
+
+    // Seed prices we already have cached (no network), and only fetch the rest.
+    // Cached values include a genuine "no price found" (stored as {p:null}) so
+    // we don't re-scrape a description that never had one — see cacheSet below.
+    const seeded: Record<string, ParsedPrice | null> = {};
+    const toFetch: { id: string; yupooId: string; name: string }[] = [];
+    for (const a of albums) {
+      if (!a.yupooId || requestedRef.current.has(a.id)) continue;
+      const cached = cacheGet<{ p: ParsedPrice | null }>("price", `${yupooHost}:${a.yupooId}`);
+      if (cached) {
+        requestedRef.current.add(a.id);
+        seeded[a.id] = cached.p;
+      } else {
+        toFetch.push({ id: a.id, yupooId: a.yupooId, name: a.name });
+      }
+    }
+    if (Object.keys(seeded).length > 0) setAlbumPrices((prev) => ({ ...prev, ...seeded }));
     if (toFetch.length === 0) return;
     for (const a of toFetch) requestedRef.current.add(a.id);
 
@@ -275,20 +314,22 @@ export function StoreView({ id }: { id: string }) {
     async function worker() {
       while (cursor < toFetch.length) {
         const album = toFetch[cursor++];
-        let result = await fetchAlbumDescription(yupooHost!, album.yupooId!);
+        let result = await fetchAlbumDescription(yupooHost!, album.yupooId);
         // Back off and retry on rate-limit (bounded) rather than silently
         // falling back to the title and showing no price for this album.
         for (let attempt = 0; result.rateLimited && attempt < 2 && !cancelled; attempt++) {
           await new Promise((r) => setTimeout(r, result.rateLimited ? result.retryAfterMs : 0));
           if (cancelled) return;
-          result = await fetchAlbumDescription(yupooHost!, album.yupooId!);
+          result = await fetchAlbumDescription(yupooHost!, album.yupooId);
         }
         if (cancelled) return;
         const description = result.rateLimited ? null : result.description;
-        setAlbumPrices((prev) => ({
-          ...prev,
-          [album.id]: parsePriceCnyDetailed(description ?? album.name),
-        }));
+        const parsed = parsePriceCnyDetailed(description ?? album.name);
+        setAlbumPrices((prev) => ({ ...prev, [album.id]: parsed }));
+        // Cache only a real lookup — a rate-limited miss should retry next time.
+        if (!result.rateLimited) {
+          cacheSet<{ p: ParsedPrice | null }>("price", `${yupooHost!}:${album.yupooId}`, { p: parsed }, CACHE_TTL.price);
+        }
       }
     }
     for (let i = 0; i < Math.min(PRICE_PREFETCH_CONCURRENCY, toFetch.length); i++) worker();

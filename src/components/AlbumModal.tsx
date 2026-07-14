@@ -8,6 +8,7 @@ import type { StoreInfo } from "@/data/stores";
 import { parseLink } from "@/lib/links";
 import { parsePriceCnyDetailed } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
+import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { useStore, duplicateNotice } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
@@ -56,6 +57,16 @@ export function AlbumModal({
   useEffect(() => {
     if (!live) return;
     let cancelled = false;
+    const cacheId = `${host}:${album.yupooId}`;
+
+    // Paint instantly from the cached photo list, then revalidate (SWR).
+    const cached = cacheGet<YupooPhotosResponse>("album", cacheId);
+    if (cached) {
+      setPhotos(cached.photos ?? []);
+      setItemLinks(cached.links ?? []);
+      setDescription(cached.description ?? null);
+    }
+
     fetch(`/api/yupoo/album?host=${encodeURIComponent(host!)}&id=${album.yupooId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: YupooPhotosResponse) => {
@@ -63,9 +74,16 @@ export function AlbumModal({
         setPhotos(data.photos ?? []);
         setItemLinks(data.links ?? []);
         setDescription(data.description ?? null);
+        cacheSet<YupooPhotosResponse>(
+          "album",
+          cacheId,
+          { photos: data.photos ?? [], links: data.links ?? [], description: data.description ?? null },
+          CACHE_TTL.photos,
+        );
       })
       .catch(() => {
-        if (!cancelled) setPhotos([]);
+        // Keep cached photos on a failed revalidation; only fall to empty if we had none.
+        if (!cancelled && !cached) setPhotos([]);
       });
     return () => {
       cancelled = true;

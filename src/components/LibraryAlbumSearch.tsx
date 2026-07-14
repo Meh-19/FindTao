@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Images, Loader2, Store } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
+import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 
 interface StoreHost {
   host: string;
@@ -54,17 +55,29 @@ export function LibraryAlbumSearch({ query }: { query: string }) {
     const todo = yupooStores.filter((s) => !fetchedRef.current.has(s.host));
     if (todo.length === 0) return;
     let cancelled = false;
+
+    // Seed instantly from cached listings (shared with the store pages), so a
+    // store you've already opened searches with zero network wait.
+    const seeded: Record<string, YupooAlbum[]> = {};
+    for (const s of todo) {
+      const cached = cacheGet<{ albums: YupooAlbum[]; hasMore: boolean }>("alb", s.host);
+      if (cached) seeded[s.host] = cached.albums;
+    }
+    if (Object.keys(seeded).length > 0) setAlbumsByHost((prev) => ({ ...prev, ...seeded }));
+
     setLoading(true);
     Promise.all(
       todo.map(async (s): Promise<[string, YupooAlbum[]]> => {
         fetchedRef.current.add(s.host);
         try {
           const res = await fetch(`/api/yupoo/albums?host=${encodeURIComponent(s.host)}&page=1`);
-          if (!res.ok) return [s.host, []];
+          if (!res.ok) return [s.host, seeded[s.host] ?? []];
           const data = (await res.json()) as YupooAlbumsResponse;
-          return [s.host, data.albums ?? []];
+          const albums = data.albums ?? [];
+          cacheSet("alb", s.host, { albums, hasMore: data.hasMore ?? false }, CACHE_TTL.albums);
+          return [s.host, albums];
         } catch {
-          return [s.host, []];
+          return [s.host, seeded[s.host] ?? []];
         }
       }),
     ).then((entries) => {
