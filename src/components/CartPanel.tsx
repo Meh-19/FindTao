@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ImageOff, Minus, Plus, X } from "lucide-react";
 import { proxiedImg } from "@/lib/yupoo";
 import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
+import { ItemLink } from "@/components/ItemLink";
 import { SharePicker } from "@/components/SharePicker";
 import { useStore, shareableStores, type SavedItem } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
@@ -124,10 +125,18 @@ export function CartPanel() {
                 const href = storeHref(line);
                 return (
                   <div key={line.id} className="flex gap-3 rounded-none border border-white/5 bg-ink-800/80 p-2.5">
-                    <LineThumb item={line} />
+                    <ItemLink item={line} onNavigate={() => setCartOpen(false)} className="shrink-0">
+                      <LineThumb item={line} />
+                    </ItemLink>
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-xs font-medium leading-snug text-mist-100" title={line.title}>
-                        {line.title}
+                      <p className="line-clamp-2 text-xs font-medium leading-snug" title={line.title}>
+                        <ItemLink
+                          item={line}
+                          onNavigate={() => setCartOpen(false)}
+                          className="text-mist-100 transition-colors hover:text-neon-300 hover:underline"
+                        >
+                          {line.title}
+                        </ItemLink>
                       </p>
                       <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-mist-500">
                         {href ? (

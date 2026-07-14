@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, ExternalLink, Images, Plus, Search, ShoppingCart, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
@@ -144,6 +145,9 @@ export function StoreView({ id }: { id: string }) {
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(catalogItems, id);
   const [openAlbum, setOpenAlbum] = useState<Album | null>(null);
+  // Deep link from a cart/haul item: `?album=<yupooId>` opens that album.
+  const albumParam = useSearchParams().get("album");
+  const handledAlbumParam = useRef<string | null>(null);
 
   const platform = useMemo(
     () => (store ? detectStorePlatform(store.url) : { platform: "other" as const, label: "Web" }),
@@ -198,6 +202,26 @@ export function StoreView({ id }: { id: string }) {
       cancelled = true;
     };
   }, [yupooHost, store]);
+
+  // Open the album named in `?album=` (arriving from a cart/haul item link).
+  // Prefer the loaded list entry; if it isn't on the first page, open a minimal
+  // one — AlbumModal fetches its own photos/price from host + id anyway. Handled
+  // once per distinct id so closing the modal doesn't immediately reopen it.
+  useEffect(() => {
+    if (!albumParam) {
+      handledAlbumParam.current = null;
+      return;
+    }
+    if (!yupooHost || !store || handledAlbumParam.current === albumParam) return;
+    const found = (liveAlbums ?? []).find((a) => a.yupooId === albumParam);
+    if (found) {
+      handledAlbumParam.current = albumParam;
+      setOpenAlbum(found);
+    } else if (liveAlbums !== null) {
+      handledAlbumParam.current = albumParam;
+      setOpenAlbum({ id: `yupoo-${albumParam}`, yupooId: albumParam, name: "", photoCount: 0, cover: null, hue: store.hue });
+    }
+  }, [albumParam, liveAlbums, yupooHost, store]);
 
   async function loadMore() {
     if (!yupooHost || !store || loadingMore) return;

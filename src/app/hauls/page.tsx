@@ -11,6 +11,7 @@ import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
 import { AdviceDetail } from "@/components/AdviceDetail";
 import { CopyButton } from "@/components/CopyButton";
 import { HaulPreview } from "@/components/HaulPreview";
+import { ItemLink } from "@/components/ItemLink";
 import { SharePicker } from "@/components/SharePicker";
 import { formatMoney } from "@/lib/currency";
 import { parseLink, toAgentUrl } from "@/lib/links";
@@ -77,21 +78,25 @@ function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
   return (
     <div className="rounded-none border border-white/5 bg-ink-900/60">
       <div className="flex items-center gap-3 p-2">
-        {item.image && item.imgHost ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={proxiedImg(item.image, item.imgHost)}
-            alt=""
-            loading="lazy"
-            className="h-10 w-12 shrink-0 rounded-none border border-white/5 object-cover"
-          />
-        ) : (
-          <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
-            <ImageOff size={13} aria-hidden="true" />
-          </span>
-        )}
-        <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
-          {item.title}
+        <ItemLink item={item} className="shrink-0">
+          {item.image && item.imgHost ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={proxiedImg(item.image, item.imgHost)}
+              alt=""
+              loading="lazy"
+              className="h-10 w-12 rounded-none border border-white/5 object-cover"
+            />
+          ) : (
+            <span className="flex h-10 w-12 items-center justify-center rounded-none border border-white/5 bg-ink-700 text-mist-500">
+              <ImageOff size={13} aria-hidden="true" />
+            </span>
+          )}
+        </ItemLink>
+        <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium" title={item.title}>
+          <ItemLink item={item} className="text-mist-100 transition-colors hover:text-neon-300 hover:underline">
+            {item.title}
+          </ItemLink>
         </p>
         {/* Size cluster: manual size wins as the "ordering" chip; the AI badge
             shows when there's no manual override. Always a toggle for the panel. */}
