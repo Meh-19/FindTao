@@ -143,6 +143,8 @@ export interface SavedItem {
   url: string | null;
   /** Saved AI Advisor size call for this item, if the shopper ran the advisor on it. */
   advice?: SizeAdvice;
+  /** Manually chosen size — what the shopper actually wants to order. Kept separate from `advice` so the AI's call stays visible for reference. */
+  manualSize?: string;
 }
 
 export interface Haul {
@@ -265,6 +267,7 @@ function sanitizeItems(value: unknown): SavedItem[] {
       storeName: typeof r.storeName === "string" ? r.storeName : "",
       url: typeof r.url === "string" ? r.url : null,
       ...(advice ? { advice } : {}),
+      ...(typeof r.manualSize === "string" && r.manualSize.trim() ? { manualSize: r.manualSize.trim() } : {}),
     });
   }
   return out;
@@ -437,6 +440,8 @@ interface Store {
   clearCart: () => void;
   /** Save (or clear with null) an AI Advisor size call onto every cart/haul line with this id. */
   setItemAdvice: (itemId: string, advice: SizeAdvice | null) => void;
+  /** Set (or clear with null) the manually chosen size on every cart/haul line with this id. */
+  setItemSize: (itemId: string, size: string | null) => void;
   hauls: Haul[];
   activeHaul: Haul;
   createHaul: (name: string) => void;
@@ -702,6 +707,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return rest;
       }
       return { ...item, advice };
+    };
+    setCart((prev) => (prev.some((l) => l.id === itemId) ? prev.map(apply) : prev));
+    setHauls((prev) =>
+      prev.map((h) =>
+        h.items.some((i) => i.id === itemId) ? { ...h, items: h.items.map(apply) } : h,
+      ),
+    );
+  }, []);
+
+  // Set (or clear) the manual size on every matching line — kept independent of
+  // `advice` so overriding the pick never discards the AI's saved recommendation.
+  const setItemSize = useCallback((itemId: string, size: string | null) => {
+    const trimmed = size?.trim();
+    const apply = (item: SavedItem): SavedItem => {
+      if (item.id !== itemId) return item;
+      if (!trimmed) {
+        const { manualSize: _drop, ...rest } = item;
+        return rest;
+      }
+      return { ...item, manualSize: trimmed };
     };
     setCart((prev) => (prev.some((l) => l.id === itemId) ? prev.map(apply) : prev));
     setHauls((prev) =>
@@ -1216,6 +1241,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromCart,
       clearCart,
       setItemAdvice,
+      setItemSize,
       hauls,
       activeHaul,
       createHaul,
@@ -1272,7 +1298,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
       wishlist, toggleWishlist, cart, cartOpen,
-      addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice,
+      addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice, setItemSize,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
       removeFromHaul, assignCartToHaul, shareHaul, shareCart, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,

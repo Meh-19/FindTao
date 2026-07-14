@@ -7,7 +7,7 @@ import {
   ChevronDown, ExternalLink, Globe, ImageOff, Lock, Pencil, Plus, Ruler, Share2, X,
 } from "lucide-react";
 import { SignInButton } from "@clerk/nextjs";
-import { AdviceBadge } from "@/components/AdviceBadge";
+import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
 import { AdviceDetail } from "@/components/AdviceDetail";
 import { CopyButton } from "@/components/CopyButton";
 import { HaulPreview } from "@/components/HaulPreview";
@@ -18,7 +18,58 @@ import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { proxiedImg } from "@/lib/yupoo";
 import { useStore, haulStats, shareableStores, HAUL_UNIT_WEIGHT_G, type Haul, type SavedItem } from "@/lib/store";
 
-/** One haul line — expandable to reveal the saved AI size call's full breakdown (see AdviceDetail). */
+/** Editor for the manually chosen size, kept independent of the AI advice. */
+function ManualSizeEditor({ item }: { item: SavedItem }) {
+  const { setItemSize } = useStore();
+  const [draft, setDraft] = useState(item.manualSize ?? "");
+  // Reflect changes made elsewhere (e.g. a fresh advisor run) into the field.
+  useEffect(() => setDraft(item.manualSize ?? ""), [item.manualSize]);
+
+  const aiSize = item.advice?.size;
+  const save = () => setItemSize(item.id, draft.trim() || null);
+
+  return (
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-mist-500">Your size</p>
+      <p className="mt-0.5 text-[11px] text-mist-500">
+        Set what you&apos;ll actually order — your AI size call is kept below either way.
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          placeholder={aiSize ? `e.g. ${aiSize}` : "e.g. L"}
+          className="w-24 rounded-none border border-ink-500 bg-ink-900 px-2.5 py-1.5 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500"
+        />
+        <button
+          onClick={save}
+          className="btn-glow rounded-none px-3 py-1.5 text-xs font-semibold text-white"
+        >
+          Save size
+        </button>
+        {item.manualSize && (
+          <button
+            onClick={() => setItemSize(item.id, null)}
+            className="border border-ink-500 px-3 py-1.5 text-xs font-medium text-mist-300 transition-colors hover:border-danger/40 hover:text-danger"
+          >
+            Clear
+          </button>
+        )}
+        {aiSize && item.manualSize !== aiSize && (
+          <button
+            onClick={() => setItemSize(item.id, aiSize)}
+            className="text-xs text-neon-300 underline decoration-neon-500/40 underline-offset-2 hover:text-neon-200"
+          >
+            Use AI size ({aiSize})
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** One haul line — expandable to set a manual size and review the saved AI size call (see AdviceDetail). */
 function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
   const { removeFromHaul, measurements } = useStore();
   const [open, setOpen] = useState(false);
@@ -42,21 +93,29 @@ function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
         <p className="line-clamp-1 min-w-0 flex-1 text-xs font-medium text-mist-100" title={item.title}>
           {item.title}
         </p>
-        {item.advice && (
-          <button
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            aria-label={open ? "Hide size details" : "Show size details"}
-            className="flex items-center gap-0.5 transition-opacity hover:opacity-80"
-          >
+        {/* Size cluster: manual size wins as the "ordering" chip; the AI badge
+            shows when there's no manual override. Always a toggle for the panel. */}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={open ? "Hide size options" : "Set size / show details"}
+          className="flex items-center gap-1 transition-opacity hover:opacity-80"
+        >
+          {item.manualSize ? (
+            <ManualSizeBadge size={item.manualSize} />
+          ) : item.advice ? (
             <AdviceBadge advice={item.advice} />
-            <ChevronDown
-              size={12}
-              aria-hidden="true"
-              className={`text-mist-500 transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          </button>
-        )}
+          ) : (
+            <span className="rounded-none border border-dashed border-ink-500 px-1.5 py-0.5 text-[10px] font-medium text-mist-500">
+              + size
+            </span>
+          )}
+          <ChevronDown
+            size={12}
+            aria-hidden="true"
+            className={`text-mist-500 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
         {item.qty > 1 && (
           <span className="rounded-none bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-mist-300">
             ×{item.qty}
@@ -73,9 +132,17 @@ function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
           <X size={14} aria-hidden="true" />
         </button>
       </div>
-      {open && item.advice && (
-        <div className="border-t border-white/5 p-3">
-          <AdviceDetail advice={item.advice} measurements={measurements} />
+      {open && (
+        <div className="space-y-3 border-t border-white/5 p-3">
+          <ManualSizeEditor item={item} />
+          {item.advice && (
+            <div className="border-t border-white/5 pt-3">
+              {item.manualSize && item.manualSize !== item.advice.size && (
+                <p className="mb-2 text-[11px] text-mist-500">AI Advisor&apos;s call, for reference:</p>
+              )}
+              <AdviceDetail advice={item.advice} measurements={measurements} />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -112,7 +179,9 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
     .map((i) => {
       const parsed = i.url ? parseLink(i.url) : null;
       const link = parsed ? (applyRef(toAgentUrl(parsed, agent), agent.id) ?? i.url) : i.url;
-      return `${i.title}${i.qty > 1 ? ` ×${i.qty}` : ""}${link ? `\n${link}` : ""}`;
+      // Prefer the manually chosen size; fall back to the AI size call if present.
+      const size = i.manualSize ?? i.advice?.size;
+      return `${i.title}${i.qty > 1 ? ` ×${i.qty}` : ""}${size ? ` — size ${size}` : ""}${link ? `\n${link}` : ""}`;
     })
     .join("\n\n");
 

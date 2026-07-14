@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ImageOff, Minus, Plus, X } from "lucide-react";
 import { proxiedImg } from "@/lib/yupoo";
-import { AdviceBadge } from "@/components/AdviceBadge";
+import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
 import { SharePicker } from "@/components/SharePicker";
 import { useStore, shareableStores, type SavedItem } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
@@ -137,7 +137,11 @@ export function CartPanel() {
                         ) : (
                           <span className="truncate">{line.storeName}</span>
                         )}
-                        {line.advice && <AdviceBadge advice={line.advice} />}
+                        {line.manualSize ? (
+                          <ManualSizeBadge size={line.manualSize} />
+                        ) : (
+                          line.advice && <AdviceBadge advice={line.advice} />
+                        )}
                       </p>
                       <div className="mt-1.5 flex items-center justify-between gap-2">
                         <div className="flex items-center rounded-none border border-ink-500">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, ExternalLink, Images, Plus, ShoppingCart, Star } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Images, Plus, Search, ShoppingCart, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
@@ -205,12 +205,19 @@ export function StoreView({ id }: { id: string }) {
   // Editing a tile's price inline (one at a time).
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [priceDraft, setPriceDraft] = useState("");
+  // Client-side title search over the loaded albums (same idea as the Search tab).
+  const [albumQuery, setAlbumQuery] = useState("");
+  const albumQ = albumQuery.trim().toLowerCase();
+  const visibleAlbums = albumQ
+    ? albums.filter((a) => albumQ.split(/\s+/).every((w) => a.name.toLowerCase().includes(w)))
+    : albums;
 
   useEffect(() => {
     // Reset per-store when navigating between stores.
     seenBaseline.current = null;
     processedNew.current = new Set();
     setUnseenNew(new Set());
+    setAlbumQuery("");
   }, [id]);
 
   useEffect(() => {
@@ -409,9 +416,26 @@ export function StoreView({ id }: { id: string }) {
 
       {(albumsLoading || albums.length > 0) && (
         <>
-          <h2 className="mb-4 mt-8 text-sm font-bold uppercase tracking-[0.15em] text-mist-500">
-            Albums {albumsLoading ? "" : `(${albums.length}${hasMore ? "+" : ""})`}
-          </h2>
+          <div className="mb-4 mt-8 flex flex-wrap items-center gap-3">
+            <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-mist-500">
+              Albums {albumsLoading ? "" : `(${albumQ ? `${visibleAlbums.length}/` : ""}${albums.length}${hasMore ? "+" : ""})`}
+            </h2>
+            {!albumsLoading && albums.length > 0 && (
+              <div className="relative w-full sm:ml-auto sm:w-72">
+                <Search
+                  size={14}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mist-500"
+                />
+                <input
+                  value={albumQuery}
+                  onChange={(e) => setAlbumQuery(e.target.value)}
+                  placeholder="Search this store's albums…"
+                  className="w-full rounded-none border border-ink-500 bg-ink-900 py-2 pl-9 pr-3 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
+                />
+              </div>
+            )}
+          </div>
           {albumsLoading ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {Array.from({ length: 8 }, (_, i) => (
@@ -424,9 +448,13 @@ export function StoreView({ id }: { id: string }) {
                 </div>
               ))}
             </div>
+          ) : visibleAlbums.length === 0 ? (
+            <p className="rounded-none border border-dashed border-ink-500 px-4 py-10 text-center text-sm text-mist-400">
+              No albums match &ldquo;{albumQuery.trim()}&rdquo;.
+            </p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {albums.map((album, i) => {
+              {visibleAlbums.map((album, i) => {
                 // Prefer the bulk-prefetched description price (real, from
                 // the seller's listing text); fall back to a title-scanned
                 // guess until that fetch lands, or for placeholder albums

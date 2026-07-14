@@ -1,4 +1,4 @@
-import { Ruler } from "lucide-react";
+import { Ruler, User } from "lucide-react";
 import type { SizeAdvice } from "@/lib/sizeAdvisor";
 
 /** Confidence → chip color (mirrors AdvisorResult's palette) = "how sure it is you'll fit". */
@@ -25,6 +25,21 @@ export function AdviceBadge({ advice, className = "" }: { advice: SizeAdvice; cl
       className={`inline-flex shrink-0 items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${CONFIDENCE_CHIP[advice.confidence]} ${className}`}
     >
       <Ruler size={9} aria-hidden="true" /> {advice.size}
+    </span>
+  );
+}
+
+/**
+ * The shopper's manually chosen size — a neutral (non-confidence-colored) chip
+ * so it reads as "the size I'm ordering" distinct from the AI's suggestion.
+ */
+export function ManualSizeBadge({ size, className = "" }: { size: string; className?: string }) {
+  return (
+    <span
+      title={`Your chosen size: ${size}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-none border border-mist-300/50 bg-mist-100/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-mist-100 ${className}`}
+    >
+      <User size={9} aria-hidden="true" /> {size}
     </span>
   );
 }
