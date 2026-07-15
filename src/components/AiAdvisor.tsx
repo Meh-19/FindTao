@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Layers, Loader2, Maximize2, Ruler, SkipForward, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, Layers, Loader2, Maximize2, Ruler, SkipForward, Sparkles, X } from "lucide-react";
 import { useStore, type SavedItem } from "@/lib/store";
 import { proxiedImg } from "@/lib/yupoo";
 import {
@@ -672,9 +673,14 @@ export function AiAdvisor() {
           {" · "}
           {hasMinimumMeasurements(measurements) ? "Height & weight on file" : "Missing height/weight"}
         </p>
-        <button onClick={() => setEditing(true)} className="text-xs text-neon-300 hover:text-neon-400">
-          Edit measurements
-        </button>
+        <div className="flex items-center gap-3">
+          <Link href="/fit" className="flex items-center gap-1 text-xs text-neon-300 hover:text-neon-400">
+            <Bot size={12} aria-hidden="true" /> Export for AI
+          </Link>
+          <button onClick={() => setEditing(true)} className="text-xs text-neon-300 hover:text-neon-400">
+            Edit measurements
+          </button>
+        </div>
       </div>
 
       {analyzeError && (
