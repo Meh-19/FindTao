@@ -15,10 +15,22 @@ async function getShare(slug: string): Promise<SharedHaul | null> {
   if (!sb) return null;
   const { data, error } = await sb.from("shared_hauls").select("*").eq("slug", slug).maybeSingle();
   if (error || !data) return null;
+  // Link to the owner's public profile if they have one published.
+  let ownerProfileHandle: string | null = null;
+  if (data.owner_id) {
+    const { data: prof } = await sb
+      .from("public_profiles")
+      .select("handle")
+      .eq("user_id", data.owner_id)
+      .eq("public", true)
+      .maybeSingle();
+    ownerProfileHandle = (prof?.handle as string | undefined) ?? null;
+  }
   return {
     slug: data.slug,
     ownerName: data.owner_name ?? "Anonymous",
     ownerImage: data.owner_image ?? null,
+    ownerProfileHandle,
     kind: data.kind === "cart" ? "cart" : "haul",
     name: data.name ?? "Haul",
     items: sanitizeSharedItems(data.data),
@@ -96,7 +108,16 @@ export default async function SharedHaulPage({ params }: { params: Promise<{ slu
             )}
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-mist-500">{kindLabel}</p>
-              <p className="truncate text-sm font-semibold text-mist-100">{haul.ownerName}</p>
+              {haul.ownerProfileHandle ? (
+                <Link
+                  href={`/u/${haul.ownerProfileHandle}`}
+                  className="truncate text-sm font-semibold text-mist-100 transition-colors hover:text-neon-300 hover:underline"
+                >
+                  {haul.ownerName}
+                </Link>
+              ) : (
+                <p className="truncate text-sm font-semibold text-mist-100">{haul.ownerName}</p>
+              )}
             </div>
           </div>
 

@@ -23,6 +23,8 @@ export interface SharedHaul {
   slug: string;
   ownerName: string;
   ownerImage: string | null;
+  /** Owner's public-profile handle when they have one — powers a "view profile" link. */
+  ownerProfileHandle: string | null;
   kind: "haul" | "cart";
   name: string;
   items: SharedItem[];

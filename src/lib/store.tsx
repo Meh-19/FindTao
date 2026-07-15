@@ -15,6 +15,7 @@ import type { StoreCategory, StoreInfo } from "@/data/stores";
 import type { CatalogItem, Category } from "@/data/catalog";
 import { EMPTY_MEASUREMENTS, type Measurements } from "./measurements";
 import type { ChartRow, GarmentType, SizeAdvice, SizeChart } from "./sizeAdvisor";
+import { slugifyHandle, sanitizeCollection, type CollectionPiece, type ProfileStore } from "./profile";
 
 export interface TagDef {
   id: number;
@@ -110,6 +111,18 @@ export const ACCENTS: Record<AccentId, { label: string; fg: string; ink: string 
   amber: { label: "Amber", fg: "#f59e0b", ink: "#000000" },
 };
 
+/** Public-profile settings — what (if anything) is shown on the shopper's shareable profile. */
+export interface ProfilePrefs {
+  /** Whether the profile page is viewable by others (private/off by default). */
+  public: boolean;
+  displayName: string;
+  bio: string;
+  showCollection: boolean;
+  showStores: boolean;
+  /** URL handle, claimed from the username at first publish and kept stable so links don't break. */
+  handle?: string;
+}
+
 export interface Prefs {
   agentId: string;
   currency: Currency;
@@ -123,6 +136,8 @@ export interface Prefs {
   myRefs: Record<string, string>;
   /** Reused slug for this user's shared cart, so re-sharing updates one link. */
   cartShareSlug?: string;
+  /** Public-profile visibility + content settings. */
+  profile: ProfilePrefs;
 }
 
 /**
@@ -377,7 +392,17 @@ interface CloudSnapshot {
   priceOverrides: Record<string, number>;
   /** Yupoo album ids the user has already seen per store id — powers "new release" badges. */
   storeSeen: Record<string, string[]>;
+  /** Owned pieces with size + quick review — the shopper's collection, shown on their profile. */
+  collection: CollectionPiece[];
 }
+
+const DEFAULT_PROFILE_PREFS: ProfilePrefs = {
+  public: false,
+  displayName: "",
+  bio: "",
+  showCollection: true,
+  showStores: true,
+};
 
 const DEFAULT_PREFS: Prefs = {
   agentId: DEFAULT_AGENT_ID,
@@ -388,7 +413,14 @@ const DEFAULT_PREFS: Prefs = {
   autoPrices: true,
   activeHaulId: "main",
   myRefs: {},
+  profile: DEFAULT_PROFILE_PREFS,
 };
+
+/** Merge stored prefs over defaults, deep-merging the nested profile so new fields backfill. */
+function mergePrefs(stored: Partial<Prefs> | undefined): Prefs {
+  const s = stored ?? {};
+  return { ...DEFAULT_PREFS, ...s, profile: { ...DEFAULT_PROFILE_PREFS, ...(s.profile ?? {}) } };
+}
 
 const DEFAULT_HAULS: Haul[] = [{ id: "main", name: "Main haul", budgetCny: null, items: [] }];
 
@@ -404,6 +436,7 @@ const K = {
   measurements: "findtao:measurements",
   priceOverrides: "findtao:priceoverrides",
   storeSeen: "findtao:storeseen",
+  collection: "findtao:collection",
   fx: "findtao:fx",
 };
 
@@ -442,6 +475,21 @@ interface Store {
   setItemAdvice: (itemId: string, advice: SizeAdvice | null) => void;
   /** Set (or clear with null) the manually chosen size on every cart/haul line with this id. */
   setItemSize: (itemId: string, size: string | null) => void;
+  /** Owned pieces with size + quick review — the shopper's collection. */
+  collection: CollectionPiece[];
+  inCollection: (id: string) => boolean;
+  addToCollection: (piece: Omit<CollectionPiece, "addedAt">) => void;
+  removeFromCollection: (id: string) => void;
+  updateCollectionPiece: (
+    id: string,
+    patch: Partial<Pick<CollectionPiece, "size" | "rating" | "review" | "title">>,
+  ) => void;
+  /** Public-profile settings; patch merges into prefs.profile. */
+  setProfilePrefs: (patch: Partial<ProfilePrefs>) => void;
+  /** Publish/update the public profile (sign-in required); returns its URL. */
+  publishProfile: (silent?: boolean) => Promise<string | null>;
+  /** Take the public profile offline and delete its published row. */
+  unpublishProfile: () => Promise<void>;
   hauls: Haul[];
   activeHaul: Haul;
   createHaul: (name: string) => void;
@@ -530,6 +578,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [measurements, setMeasurementsState] = useState<Measurements>(EMPTY_MEASUREMENTS);
   const [priceOverrides, setPriceOverridesState] = useState<Record<string, number>>({});
   const [storeSeen, setStoreSeen] = useState<Record<string, string[]>>({});
+  const [collection, setCollection] = useState<CollectionPiece[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
   const [user, setUser] = useState<CloudUser | null>(null);
@@ -586,7 +635,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    setPrefsState({ ...DEFAULT_PREFS, ...read(K.prefs, {}) });
+    setPrefsState(mergePrefs(read(K.prefs, {})));
     setWishlist(read(K.wishlist, []));
     setCart(sanitizeItems(read(K.cart, [])));
     const storedHauls = sanitizeHauls(read(K.hauls, []));
@@ -598,6 +647,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMeasurementsState(sanitizeMeasurements(read(K.measurements, EMPTY_MEASUREMENTS)));
     setPriceOverridesState(sanitizePriceOverrides(read(K.priceOverrides, {})));
     setStoreSeen(sanitizeStoreSeen(read(K.storeSeen, {})));
+    setCollection(sanitizeCollection(read(K.collection, [])));
     setHydrated(true);
   }, []);
 
@@ -614,7 +664,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(K.measurements, JSON.stringify(measurements));
     window.localStorage.setItem(K.priceOverrides, JSON.stringify(priceOverrides));
     window.localStorage.setItem(K.storeSeen, JSON.stringify(storeSeen));
-  }, [hydrated, prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen]);
+    window.localStorage.setItem(K.collection, JSON.stringify(collection));
+  }, [hydrated, prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen, collection]);
 
   // Live CNY rates, cached for 12h; FALLBACK_RATES until the fetch lands or on failure.
   useEffect(() => {
@@ -734,6 +785,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         h.items.some((i) => i.id === itemId) ? { ...h, items: h.items.map(apply) } : h,
       ),
     );
+  }, []);
+
+  const addToCollection = useCallback((piece: Omit<CollectionPiece, "addedAt">) => {
+    setCollection((prev) => (prev.some((p) => p.id === piece.id) ? prev : [{ ...piece, addedAt: Date.now() }, ...prev]));
+  }, []);
+
+  const removeFromCollection = useCallback((id: string) => {
+    setCollection((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const updateCollectionPiece = useCallback(
+    (id: string, patch: Partial<Pick<CollectionPiece, "size" | "rating" | "review" | "title">>) => {
+      setCollection((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    },
+    [],
+  );
+
+  const setProfilePrefs = useCallback((patch: Partial<ProfilePrefs>) => {
+    setPrefsState((prev) => ({ ...prev, profile: { ...prev.profile, ...patch } }));
   }, []);
 
   const createHaul = useCallback((name: string) => {
@@ -968,12 +1038,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const snapshot = useMemo<CloudSnapshot>(
-    () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen }),
-    [prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen],
+    () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen, collection }),
+    [prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen, collection],
   );
 
   const applySnapshot = useCallback((s: Partial<CloudSnapshot>) => {
-    if (s.prefs) setPrefsState({ ...DEFAULT_PREFS, ...s.prefs });
+    if (s.prefs) setPrefsState(mergePrefs(s.prefs));
     if (s.priceOverrides) setPriceOverridesState(sanitizePriceOverrides(s.priceOverrides));
     if (s.storeSeen) setStoreSeen(sanitizeStoreSeen(s.storeSeen));
     if (Array.isArray(s.wishlist)) setWishlist(s.wishlist);
@@ -987,6 +1057,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (Array.isArray(s.userStores)) setUserStores(s.userStores);
     if (Array.isArray(s.tracking)) setTracking(s.tracking);
     if (s.measurements) setMeasurementsState(sanitizeMeasurements(s.measurements));
+    if (Array.isArray(s.collection)) setCollection(sanitizeCollection(s.collection));
   }, []);
 
   // Identity comes from Clerk. Map its user onto our CloudUser shape; null when
@@ -1189,6 +1260,86 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [directory, userStores],
   );
 
+  // Build the public_profiles row from the current profile settings + content,
+  // honoring the show-collection / show-stores privacy toggles.
+  const buildProfileRow = useCallback(
+    (handle: string) => {
+      const p = prefs.profile;
+      const storeSnapshots: ProfileStore[] = p.showStores
+        ? allStores
+            .filter((s) => library.includes(s.id))
+            .map((s) => ({ id: s.id, name: s.name, url: s.url, image: s.image ?? null, categories: s.categories }))
+        : [];
+      return {
+        user_id: user!.id,
+        handle,
+        display_name: p.displayName.trim() || profileName || "Anonymous",
+        image: user!.image,
+        bio: p.bio,
+        collection: p.showCollection ? collection : [],
+        stores: storeSnapshots,
+        show_collection: p.showCollection,
+        show_stores: p.showStores,
+        public: true,
+        updated_at: new Date().toISOString(),
+      };
+    },
+    [prefs.profile, allStores, library, user, profileName, collection],
+  );
+
+  const publishProfile = useCallback(
+    async (silent = false): Promise<string | null> => {
+      if (!sb) {
+        if (!silent) toast("Profiles need cloud sync, which isn't configured here", "error");
+        return null;
+      }
+      if (!user) {
+        if (!silent) {
+          toast("Sign in to make a public profile", "info");
+          clerk.openSignIn();
+        }
+        return null;
+      }
+      const base = prefs.profile.handle ?? slugifyHandle(profileName ?? user.metaUsername ?? prefs.profile.displayName ?? "user");
+      let handle = base;
+      // Claim a unique handle: on the first publish, a taken name (23505) retries
+      // with a numeric suffix. Once claimed, the handle is reused so links persist.
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const { error } = await sb.from("public_profiles").upsert(buildProfileRow(handle), { onConflict: "user_id" });
+        if (!error) {
+          if (prefs.profile.handle !== handle || !prefs.profile.public) {
+            setPrefsState((prev) => ({ ...prev, profile: { ...prev.profile, handle, public: true } }));
+          }
+          return `${window.location.origin}/u/${handle}`;
+        }
+        if ((error as { code?: string }).code === "23505" && !prefs.profile.handle) {
+          handle = `${base}-${attempt + 2}`;
+          continue;
+        }
+        if (!silent) toast("Couldn't publish your profile — try again", "error");
+        return null;
+      }
+      if (!silent) toast("That profile name is taken — change your display name and retry", "error");
+      return null;
+    },
+    [sb, user, prefs.profile, buildProfileRow, profileName, clerk, toast],
+  );
+
+  const unpublishProfile = useCallback(async () => {
+    setProfilePrefs({ public: false });
+    if (sb && user) await sb.from("public_profiles").delete().eq("user_id", user.id);
+  }, [sb, user, setProfilePrefs]);
+
+  // While the profile is public, debounce-republish collection/store/settings
+  // edits to public_profiles so the shared page stays fresh (like user_state sync).
+  useEffect(() => {
+    if (!sb || !user || !hydrated || !pulledRef.current || !prefs.profile.public) return;
+    const timer = setTimeout(() => {
+      void publishProfile(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [sb, user, hydrated, prefs.profile, collection, library, allStores, profileName, publishProfile]);
+
   // Admin UI visibility is driven purely by profile role tags — the owner's
   // email is never shipped to the client. The owner is bootstrapped with an
   // 'owner' tag server-side (see supabase/schema.sql), and the database's own
@@ -1242,6 +1393,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearCart,
       setItemAdvice,
       setItemSize,
+      collection,
+      inCollection: (id) => collection.some((p) => p.id === id),
+      addToCollection,
+      removeFromCollection,
+      updateCollectionPiece,
+      setProfilePrefs,
+      publishProfile,
+      unpublishProfile,
       hauls,
       activeHaul,
       createHaul,
@@ -1299,6 +1458,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
       wishlist, toggleWishlist, cart, cartOpen,
       addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice, setItemSize,
+      collection, addToCollection, removeFromCollection, updateCollectionPiece,
+      setProfilePrefs, publishProfile, unpublishProfile,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,
       removeFromHaul, assignCartToHaul, shareHaul, shareCart, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,

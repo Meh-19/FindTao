@@ -312,6 +312,44 @@ create policy "delete own shares" on public.shared_hauls for delete
   using (owner_id = (auth.jwt() ->> 'sub'));
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Public profiles — a shopper's shareable /u/<handle> page: their collection
+-- (owned pieces with size + review) and followed stores, gated by per-section
+-- privacy toggles. Published from the app when the user turns their profile on
+-- (private by default). `collection`/`stores` are self-contained jsonb snapshots
+-- so the public page needs none of the owner's other data. One row per user
+-- (Clerk sub); `handle` is unique so it can key the pretty URL. Anyone can read
+-- a public profile; only its owner can publish/update/delete it.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.public_profiles (
+  user_id text primary key,
+  handle text not null unique,
+  display_name text not null default 'Anonymous',
+  image text,
+  bio text not null default '',
+  collection jsonb not null default '[]'::jsonb,
+  stores jsonb not null default '[]'::jsonb,
+  show_collection boolean not null default true,
+  show_stores boolean not null default true,
+  public boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table public.public_profiles enable row level security;
+create index if not exists public_profiles_handle_idx on public.public_profiles (handle);
+
+drop policy if exists "read public or own profile card" on public.public_profiles;
+create policy "read public or own profile card" on public.public_profiles for select
+  using (public or user_id = (auth.jwt() ->> 'sub'));
+drop policy if exists "insert own profile card" on public.public_profiles;
+create policy "insert own profile card" on public.public_profiles for insert
+  with check (user_id = (auth.jwt() ->> 'sub'));
+drop policy if exists "update own profile card" on public.public_profiles;
+create policy "update own profile card" on public.public_profiles for update
+  using (user_id = (auth.jwt() ->> 'sub'));
+drop policy if exists "delete own profile card" on public.public_profiles;
+create policy "delete own profile card" on public.public_profiles for delete
+  using (user_id = (auth.jwt() ->> 'sub'));
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Storage: public bucket for store profile pictures, uploaded from /dev. Anyone
 -- can read (avatars show for signed-out visitors too); only admins can write.
 -- ─────────────────────────────────────────────────────────────────────────────

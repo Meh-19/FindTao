@@ -1,9 +1,12 @@
 "use client";
 
-import { CloudUpload, LogOut } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { CloudUpload, ExternalLink, Globe, Lock, LogOut, Shirt } from "lucide-react";
 import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { CURRENCIES, type Currency } from "@/lib/currency";
+import { CopyButton } from "@/components/CopyButton";
 import { useStore, ACCENTS, type AccentId, type CardSize } from "@/lib/store";
 
 const selectClass =
@@ -123,6 +126,132 @@ function AccountSection() {
           Manage your email, password, and security in the account menu.
         </p>
       </div>
+    </div>
+  );
+}
+
+function ProfileSection() {
+  const {
+    cloudEnabled, user, prefs, setProfilePrefs, publishProfile, unpublishProfile, profileName, toast, collection, hydrated,
+  } = useStore();
+  const [busy, setBusy] = useState(false);
+  const profile = prefs.profile;
+  const profileUrl =
+    profile.handle && typeof window !== "undefined" ? `${window.location.origin}/u/${profile.handle}` : null;
+
+  async function togglePublic(next: boolean) {
+    setBusy(true);
+    try {
+      if (next) {
+        const url = await publishProfile();
+        if (url) toast("Your profile is live");
+      } else {
+        await unpublishProfile();
+        toast("Your profile is now private", "info");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!cloudEnabled || !user) {
+    return (
+      <div className="rounded-none border border-dashed border-ink-500 p-5">
+        <p className="text-sm font-semibold text-mist-300">Public profile</p>
+        <p className="mt-0.5 text-xs text-mist-500">
+          Sign in to publish a shareable profile with your collection and followed stores. It stays private until you
+          turn it on.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-pop rounded-none border border-white/5 bg-ink-800/80 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-mist-100">Public profile</p>
+          <p className="mt-0.5 text-xs text-mist-500">
+            A shareable page at <span className="font-mono text-mist-400">/u/{profile.handle ?? "yourname"}</span> with
+            your collection and stores. Off by default.
+          </p>
+        </div>
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-mist-400">
+          {profile.public ? <Globe size={13} aria-hidden="true" className="text-success" /> : <Lock size={13} aria-hidden="true" />}
+          <input
+            type="checkbox"
+            checked={profile.public}
+            disabled={busy}
+            onChange={(e) => togglePublic(e.target.checked)}
+            className="h-5 w-5 accent-white"
+          />
+        </label>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <label className="block text-xs text-mist-400">
+          Display name
+          <input
+            value={profile.displayName}
+            onChange={(e) => setProfilePrefs({ displayName: e.target.value })}
+            placeholder={profileName ?? "Your name"}
+            className="mt-1 w-full rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500"
+          />
+        </label>
+        <label className="block text-xs text-mist-400">
+          Bio
+          <textarea
+            value={profile.bio}
+            onChange={(e) => setProfilePrefs({ bio: e.target.value })}
+            rows={2}
+            placeholder="A line about your style, sizing, favorite stores…"
+            className="mt-1 w-full resize-none rounded-none border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder-mist-500 outline-none focus:border-neon-500"
+          />
+        </label>
+
+        <p className="pt-1 text-[11px] font-bold uppercase tracking-[0.15em] text-mist-500">Show on profile</p>
+        <label className="flex cursor-pointer items-center justify-between rounded-none border border-white/5 bg-ink-900/60 px-3 py-2.5">
+          <span className="flex items-center gap-2 text-sm text-mist-200">
+            <Shirt size={14} aria-hidden="true" className="text-mist-500" /> Collection
+            <Link href="/collection" className="text-xs text-neon-300 hover:text-neon-400">
+              ({collection.length} — manage)
+            </Link>
+          </span>
+          <input
+            type="checkbox"
+            checked={profile.showCollection}
+            onChange={(e) => setProfilePrefs({ showCollection: e.target.checked })}
+            className="h-4 w-4 accent-white"
+          />
+        </label>
+        <label className="flex cursor-pointer items-center justify-between rounded-none border border-white/5 bg-ink-900/60 px-3 py-2.5">
+          <span className="text-sm text-mist-200">Followed stores</span>
+          <input
+            type="checkbox"
+            checked={profile.showStores}
+            onChange={(e) => setProfilePrefs({ showStores: e.target.checked })}
+            className="h-4 w-4 accent-white"
+          />
+        </label>
+      </div>
+
+      {profile.public && profileUrl && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-mist-500">Your profile link</p>
+          <p className="mt-1 truncate font-mono text-xs text-mist-300">{profileUrl}</p>
+          <div className="mt-2 flex gap-2">
+            <CopyButton text={profileUrl} label="Copy link" className="flex-1 py-2" />
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-none border border-ink-500 px-4 py-2 text-sm font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
+            >
+              <ExternalLink size={14} aria-hidden="true" /> Open
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,6 +418,8 @@ export default function SettingsPage() {
         </label>
 
         <AccountSection />
+
+        <ProfileSection />
 
         <ReferralSection />
 

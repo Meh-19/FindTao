@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, ExternalLink, Images, Plus, Search, ShoppingCart, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
@@ -145,9 +145,26 @@ export function StoreView({ id }: { id: string }) {
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(catalogItems, id);
   const [openAlbum, setOpenAlbum] = useState<Album | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   // Deep link from a cart/haul item: `?album=<yupooId>` opens that album.
   const albumParam = useSearchParams().get("album");
   const handledAlbumParam = useRef<string | null>(null);
+
+  // Open an album and reflect it in the URL so it's shareable/linkable, without
+  // re-triggering the deep-link effect below (we mark it handled here).
+  function openAlbumAt(album: Album) {
+    setOpenAlbum(album);
+    if (album.yupooId) {
+      handledAlbumParam.current = album.yupooId;
+      router.replace(`${pathname}?album=${album.yupooId}`, { scroll: false });
+    }
+  }
+
+  function closeAlbum() {
+    setOpenAlbum(null);
+    if (albumParam) router.replace(pathname, { scroll: false });
+  }
 
   const platform = useMemo(
     () => (store ? detectStorePlatform(store.url) : { platform: "other" as const, label: "Web" }),
@@ -568,7 +585,7 @@ export function StoreView({ id }: { id: string }) {
                         )}
                       </div>
                     )}
-                    <button onClick={() => setOpenAlbum(album)} className="block w-full text-left">
+                    <button onClick={() => openAlbumAt(album)} className="block w-full text-left">
                       <div
                         className="tile-shimmer relative flex aspect-square items-center justify-center overflow-hidden"
                         style={
@@ -714,7 +731,7 @@ export function StoreView({ id }: { id: string }) {
           store={store}
           album={openAlbum}
           host={openAlbum.yupooId ? yupooHost : null}
-          onClose={() => setOpenAlbum(null)}
+          onClose={closeAlbum}
         />
       )}
     </div>
