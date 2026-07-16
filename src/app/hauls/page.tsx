@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -12,8 +12,11 @@ import { AdviceDetail } from "@/components/AdviceDetail";
 import { CopyButton } from "@/components/CopyButton";
 import { HaulPreview } from "@/components/HaulPreview";
 import { ItemLink } from "@/components/ItemLink";
+import { PriceCheckButton } from "@/components/PriceCheckButton";
+import { PriceDropBadge } from "@/components/PriceDropBadge";
 import { SharePicker } from "@/components/SharePicker";
 import { formatMoney } from "@/lib/currency";
+import { priceChangesSince, scaleChange, type PriceChange } from "@/lib/priceHistory";
 import { parseLink, toAgentUrl } from "@/lib/links";
 import { getAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
 import { proxiedImg } from "@/lib/yupoo";
@@ -71,8 +74,8 @@ function ManualSizeEditor({ item }: { item: SavedItem }) {
 }
 
 /** One haul line — expandable to set a manual size and review the saved AI size call (see AdviceDetail). */
-function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
-  const { removeFromHaul, measurements } = useStore();
+function HaulItem({ item, haulId, priceMove }: { item: SavedItem; haulId: string; priceMove: PriceChange | null }) {
+  const { removeFromHaul, toastUndo, measurements } = useStore();
   const [open, setOpen] = useState(false);
 
   return (
@@ -126,11 +129,12 @@ function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
             ×{item.qty}
           </span>
         )}
-        <span className="text-[11px] tabular-nums text-mist-500">
+        <span className="flex items-center gap-1.5 text-[11px] tabular-nums text-mist-500">
           {item.priceCny !== null ? formatMoney(item.priceCny * item.qty, "CNY") : "—"}
+          <PriceDropBadge change={scaleChange(priceMove, item.qty)} />
         </span>
         <button
-          onClick={() => removeFromHaul(haulId, item.id)}
+          onClick={() => toastUndo(`${item.title} removed`, removeFromHaul(haulId, item.id))}
           aria-label="Remove from haul"
           className="rounded px-1.5 py-1 text-mist-500 hover:text-danger"
         >
@@ -157,13 +161,19 @@ function HaulItem({ item, haulId }: { item: SavedItem; haulId: string }) {
 function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
   const {
     prefs, setPrefs, renameHaul, deleteHaul, setHaulBudget, removeFromHaul,
-    fmtConverted, toast, applyRef, shareHaul, unshareHaul, setHaulPublic, user, cloudEnabled,
+    fmtConverted, toast, toastUndo, applyRef, shareHaul, unshareHaul, setHaulPublic, user, cloudEnabled,
   } = useStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(haul.name);
+  // Price history lives in localStorage, not React state — a check bumps this to recompute the badges.
+  const [priceCheckedAt, setPriceCheckedAt] = useState(0);
 
   const agent = getAgent(prefs.agentId) ?? getAgent(DEFAULT_AGENT_ID)!;
   const items = haul.items;
+  const priceMoves = useMemo(
+    () => priceChangesSince(items.map((i) => ({ id: i.id, priceCny: i.priceCny }))),
+    [items, priceCheckedAt],
+  );
   const { unitCount, totalCny } = haulStats(items);
   const unpricedCount = items.filter((i) => i.priceCny === null).length;
   // Album-backed items are the ones the AI Advisor can size (they carry a chart source).
@@ -242,7 +252,7 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
                 </button>
               )}
               <button
-                onClick={() => { deleteHaul(haul.id); toast(`${haul.name} deleted`, "info"); }}
+                onClick={() => toastUndo(`${haul.name} deleted`, deleteHaul(haul.id))}
                 className="ml-auto text-xs text-mist-500 transition-colors hover:text-danger"
               >
                 Delete
@@ -341,8 +351,12 @@ function HaulCard({ haul, focused }: { haul: Haul; focused: boolean }) {
 
         {items.length > 0 && (
           <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-mist-500">Pieces</p>
+              <PriceCheckButton items={items} onChecked={() => setPriceCheckedAt(Date.now())} />
+            </div>
             {items.map((item) => (
-              <HaulItem key={item.id} item={item} haulId={haul.id} />
+              <HaulItem key={item.id} item={item} haulId={haul.id} priceMove={priceMoves[item.id] ?? null} />
             ))}
             <CopyButton text={exportText} label={`Copy ${items.length} ${agent.name} links`} className="mt-1 w-full py-2" />
           </div>

@@ -6,17 +6,7 @@ import { Images, Loader2, Store } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
-
-interface StoreHost {
-  host: string;
-  id: string;
-  name: string;
-}
-
-/** `https://firerep.x.yupoo.com/...` → `firerep`. */
-function hostOf(url: string): string | null {
-  return url.match(/([a-z0-9-]+)\.x\.yupoo\.com/i)?.[1]?.toLowerCase() ?? null;
-}
+import { libraryYupooStores } from "@/lib/yupooStores";
 
 /**
  * Live album search across every Yupoo store in the user's Library — the
@@ -28,18 +18,7 @@ function hostOf(url: string): string | null {
 export function LibraryAlbumSearch({ query }: { query: string }) {
   const { allStores, library } = useStore();
 
-  const yupooStores = useMemo<StoreHost[]>(() => {
-    const out: StoreHost[] = [];
-    const seen = new Set<string>();
-    for (const s of allStores) {
-      if (!library.includes(s.id) || !/\.x\.yupoo\.com/i.test(s.url)) continue;
-      const host = hostOf(s.url);
-      if (!host || seen.has(host)) continue;
-      seen.add(host);
-      out.push({ host, id: s.id, name: s.name });
-    }
-    return out;
-  }, [allStores, library]);
+  const yupooStores = useMemo(() => libraryYupooStores(allStores, library), [allStores, library]);
 
   const [albumsByHost, setAlbumsByHost] = useState<Record<string, YupooAlbum[]>>({});
   const [loading, setLoading] = useState(false);
@@ -141,7 +120,7 @@ export function LibraryAlbumSearch({ query }: { query: string }) {
           {results.map(({ album, host, storeId, storeName }) => (
             <Link
               key={`${host}:${album.id}`}
-              href={`/store/${storeId}`}
+              href={`/store/${storeId}?album=${album.id}`}
               className="group overflow-hidden border border-white/5 transition-colors hover:border-white"
             >
               <div className="flex aspect-square items-center justify-center overflow-hidden bg-ink-700">

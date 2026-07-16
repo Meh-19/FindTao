@@ -26,7 +26,7 @@ function PieceImage({ piece, className }: { piece: CollectionPiece; className: s
 
 /** One owned piece — editable size, star rating, and a short review. */
 function CollectionRow({ piece }: { piece: CollectionPiece }) {
-  const { updateCollectionPiece, removeFromCollection } = useStore();
+  const { updateCollectionPiece, removeFromCollection, toastUndo } = useStore();
   const [size, setSize] = useState(piece.size);
   const [review, setReview] = useState(piece.review);
   useEffect(() => setSize(piece.size), [piece.size]);
@@ -45,7 +45,7 @@ function CollectionRow({ piece }: { piece: CollectionPiece }) {
             </ItemLink>
           </p>
           <button
-            onClick={() => removeFromCollection(piece.id)}
+            onClick={() => toastUndo(`${piece.title} removed from collection`, removeFromCollection(piece.id))}
             aria-label="Remove from collection"
             className="shrink-0 rounded px-1 py-1 text-mist-500 transition-colors hover:text-danger"
           >

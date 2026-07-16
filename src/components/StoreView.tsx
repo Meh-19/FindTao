@@ -12,6 +12,9 @@ import { parsePriceCnyDetailed, type ParsedPrice } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
+import { albumItemId, commitAlbumPrice, fetchAlbumDescription } from "@/lib/albumPrice";
+import { lastPriceChanges } from "@/lib/priceHistory";
+import { PriceDropBadge } from "./PriceDropBadge";
 import { StoreAvatar } from "./StoreAvatar";
 import { AlbumModal } from "./AlbumModal";
 import { ItemCard } from "./ItemCard";
@@ -40,31 +43,6 @@ async function fetchAlbums(
     albums: (data.albums ?? []).map((a) => toAlbum(a, hue)),
     hasMore: data.hasMore ?? false,
   };
-}
-
-/**
- * Real price lives in the album description, not the title (see AlbumModal) —
- * fetch just that. A 429 is reported distinctly (with the server's Retry-After)
- * so the prefetch loop can back off and retry rather than permanently showing
- * no price; any other failure resolves to a null description (price unknown).
- */
-type DescriptionResult =
-  | { rateLimited: false; description: string | null }
-  | { rateLimited: true; retryAfterMs: number };
-
-async function fetchAlbumDescription(host: string, yupooId: string): Promise<DescriptionResult> {
-  try {
-    const res = await fetch(`/api/yupoo/album?host=${encodeURIComponent(host)}&id=${yupooId}&light=1`);
-    if (res.status === 429) {
-      const retryAfter = Number(res.headers.get("Retry-After"));
-      return { rateLimited: true, retryAfterMs: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 5000 };
-    }
-    if (!res.ok) return { rateLimited: false, description: null };
-    const data = (await res.json()) as { description?: string | null };
-    return { rateLimited: false, description: data.description ?? null };
-  } catch {
-    return { rateLimited: false, description: null };
-  }
 }
 
 const PRICE_PREFETCH_CONCURRENCY = 6;
@@ -139,7 +117,7 @@ function MarketplacePreview({
 export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
-    favStores, toggleFavStore, toast, hydrated, tagDefs, fmtConverted, addToCart, itemLocations, catalogItems,
+    favStores, toggleFavStore, toast, toastUndo, hydrated, tagDefs, fmtConverted, addToCart, itemLocations, catalogItems,
     inCart, activeHaul, priceOverrides, setPriceOverride, storeSeen, markStoreSeen,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
@@ -367,10 +345,9 @@ export function StoreView({ id }: { id: string }) {
         const description = result.rateLimited ? null : result.description;
         const parsed = parsePriceCnyDetailed(description ?? album.name);
         setAlbumPrices((prev) => ({ ...prev, [album.id]: parsed }));
-        // Cache only a real lookup — a rate-limited miss should retry next time.
-        if (!result.rateLimited) {
-          cacheSet<{ p: ParsedPrice | null }>("price", `${yupooHost!}:${album.yupooId}`, { p: parsed }, CACHE_TTL.price);
-        }
+        // Cache (and log to price history) only a real lookup — a rate-limited
+        // miss should retry next time, and must never land in the history.
+        if (!result.rateLimited) commitAlbumPrice(yupooHost!, album.yupooId, parsed);
       }
     }
     for (let i = 0; i < Math.min(PRICE_PREFETCH_CONCURRENCY, toFetch.length); i++) worker();
@@ -378,6 +355,19 @@ export function StoreView({ id }: { id: string }) {
       cancelled = true;
     };
   }, [yupooHost, albums]);
+
+  // Price moves for the albums on screen, recomputed when a prefetch lands
+  // (that's what writes the history) rather than on every render.
+  const priceMoves = useMemo(() => {
+    if (!yupooHost) return {};
+    const ids = albums.filter((a) => a.yupooId).map((a) => albumItemId(yupooHost, a.yupooId!));
+    const byItemId = lastPriceChanges(ids);
+    return Object.fromEntries(
+      albums
+        .filter((a) => a.yupooId)
+        .map((a) => [a.id, byItemId[albumItemId(yupooHost, a.yupooId!)] ?? null]),
+    );
+  }, [albums, yupooHost, albumPrices]);
 
   if (!hydrated) return null;
   if (!store) {
@@ -454,7 +444,7 @@ export function StoreView({ id }: { id: string }) {
             makes flex-wrap actually drop it to a new row on mobile. */}
         {saved ? (
           <button
-            onClick={() => { removeFromLibrary(store.id); toast(`${store.name} removed from library`, "info"); }}
+            onClick={() => toastUndo(`${store.name} removed from library`, removeFromLibrary(store.id))}
             className="flex w-full items-center justify-center gap-1.5 rounded-none border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success sm:w-auto"
           >
             <Check size={14} aria-hidden="true" /> In library
@@ -626,7 +616,10 @@ export function StoreView({ id }: { id: string }) {
                             ) : null}{" "}
                             <span className="flow-text text-xs font-bold">≈ {fmtConverted(price)}</span>
                           </p>
-                        ) : (
+                        ) : null}
+                        {/* A move only shows on the scraped price — a manual override is the shopper's own number. */}
+                        {override === undefined && <PriceDropBadge change={priceMoves[album.id] ?? null} className="mt-1.5" />}
+                        {price === null && (
                           <p className="mt-1.5 text-[11px] text-mist-500">
                             {canQuickAdd ? "No price — tap ¥ to set" : "Tap for details"}
                           </p>

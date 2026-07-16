@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { detectCarrier, track17Url as track17 } from "@/lib/tracking";
 
 export default function TrackingPage() {
-  const { tracking, addTracking, removeTracking, toast, hydrated } = useStore();
+  const { tracking, addTracking, removeTracking, toast, toastUndo, hydrated } = useStore();
   const [input, setInput] = useState("");
 
   if (!hydrated) return null;
@@ -70,7 +70,7 @@ export default function TrackingPage() {
                 17TRACK <ExternalLink size={11} aria-hidden="true" />
               </a>
               <button
-                onClick={() => removeTracking(p.number)}
+                onClick={() => toastUndo(`${p.number} removed`, removeTracking(p.number))}
                 aria-label="Remove tracking number"
                 className="rounded px-1.5 py-1 text-mist-500 hover:text-danger"
               >

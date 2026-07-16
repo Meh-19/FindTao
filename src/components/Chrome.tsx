@@ -9,8 +9,11 @@ import { getItem } from "@/data/catalog";
 const VIEW_LABEL: Record<string, string> = {
   "": "Home",
   browse: "Search",
+  wishlist: "Wishlist",
+  drops: "New drops",
   library: "Library",
   discover: "Discover",
+  w2c: "W2C finder",
   advisor: "AI Advisor",
   convert: "Converter",
   hauls: "Hauls",
@@ -220,9 +223,18 @@ export function Toasts() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`toast-in rounded-none border bg-ink-800/95 px-4 py-2.5 text-xs font-medium shadow-hard backdrop-blur ${colors[t.type]}`}
+          className={`toast-in flex items-center gap-3 rounded-none border bg-ink-800/95 px-4 py-2.5 text-xs font-medium shadow-hard backdrop-blur ${colors[t.type]}`}
         >
-          {t.msg}
+          <span className="min-w-0 flex-1">{t.msg}</span>
+          {t.action && (
+            // The toast stack ignores pointer events so it never blocks the page — re-enable it just for the button.
+            <button
+              onClick={t.action.run}
+              className="pointer-events-auto shrink-0 border border-current/40 px-2 py-1 text-[11px] font-bold uppercase tracking-wide transition-colors hover:bg-white/10"
+            >
+              {t.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

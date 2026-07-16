@@ -12,7 +12,7 @@ import { StoreAvatar } from "@/components/StoreAvatar";
 import { useStore } from "@/lib/store";
 
 export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: number }) {
-  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, hydrated, tagDefs, catalogItems, storeSeen } = useStore();
+  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, toastUndo, hydrated, tagDefs, catalogItems, storeSeen } = useStore();
   const storeTagDefs = tagDefs.filter((t) => t.kind === "store" && store.tags?.includes(t.name));
   const saved = hydrated && inLibrary(store.id);
   const fav = hydrated && favStores.includes(store.id);
@@ -123,7 +123,7 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
           </Link>
           {saved ? (
             <button
-              onClick={() => { removeFromLibrary(store.id); toast(`${store.name} removed from library`, "info"); }}
+              onClick={() => toastUndo(`${store.name} removed from library`, removeFromLibrary(store.id))}
               className="flex items-center gap-1 rounded-none border border-success/40 bg-success/10 px-3 py-1.5 font-medium text-success transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
             >
               <Check size={12} aria-hidden="true" /> In library

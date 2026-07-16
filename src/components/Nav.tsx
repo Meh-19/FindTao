@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { SignInButton, useClerk } from "@clerk/nextjs";
 import {
   Globe,
+  Heart,
   Home,
   LibraryBig,
   Link2,
@@ -13,6 +14,7 @@ import {
   Package,
   Plane,
   Ruler,
+  ScanSearch,
   Search,
   Settings,
   Shirt,
@@ -21,6 +23,7 @@ import {
   Star,
   Wrench,
   X,
+  Zap,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
@@ -30,8 +33,11 @@ import { SyncBadge } from "./Chrome";
 const LINKS = [
   { href: "/", label: "Home", Icon: Home },
   { href: "/browse", label: "Search", Icon: Search },
+  { href: "/wishlist", label: "Wishlist", Icon: Heart },
+  { href: "/drops", label: "New drops", Icon: Zap },
   { href: "/library", label: "Library", Icon: LibraryBig },
   { href: "/discover", label: "Discover", Icon: Globe },
+  { href: "/w2c", label: "W2C finder", Icon: ScanSearch },
   { href: "/advisor", label: "AI Advisor", Icon: Ruler },
   { href: "/convert", label: "Converter", Icon: Link2 },
   { href: "/hauls", label: "Hauls", Icon: ShoppingBasket },

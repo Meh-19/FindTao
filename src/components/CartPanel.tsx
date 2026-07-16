@@ -6,10 +6,12 @@ import { ImageOff, Minus, Plus, X } from "lucide-react";
 import { proxiedImg } from "@/lib/yupoo";
 import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
 import { ItemLink } from "@/components/ItemLink";
+import { PriceDropBadge } from "@/components/PriceDropBadge";
 import { SharePicker } from "@/components/SharePicker";
 import { useStore, shareableStores, type SavedItem } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
+import { priceChangesSince, scaleChange } from "@/lib/priceHistory";
 
 function LineThumb({ item }: { item: SavedItem }) {
   if (item.image && item.imgHost) {
@@ -33,9 +35,16 @@ function LineThumb({ item }: { item: SavedItem }) {
 export function CartPanel() {
   const {
     cart, cartCount, cartOpen, setCartOpen, setCartQty, removeFromCart, clearCart,
-    hauls, prefs, setPrefs, assignCartToHaul, fmtConverted, toast, hydrated, allStores, shareCart,
+    hauls, prefs, setPrefs, assignCartToHaul, fmtConverted, toast, toastUndo, hydrated, allStores, shareCart,
   } = useStore();
   const [targetHaul, setTargetHaul] = useState(prefs.activeHaulId);
+
+  // What each line's price has done since it was added, from whatever the app
+  // has scraped since (store visits, or an explicit check from the haul page).
+  const priceMoves = useMemo(
+    () => priceChangesSince(cart.map((l) => ({ id: l.id, priceCny: l.priceCny }))),
+    [cart],
+  );
 
   useEffect(() => setTargetHaul(prefs.activeHaulId), [prefs.activeHaulId]);
 
@@ -97,7 +106,7 @@ export function CartPanel() {
           <div className="flex items-center gap-3">
             {cart.length > 0 && (
               <button
-                onClick={() => { clearCart(); toast("Cart cleared", "info"); }}
+                onClick={() => toastUndo("Cart cleared", clearCart())}
                 className="text-xs text-mist-500 transition-colors hover:text-danger"
               >
                 Clear
@@ -172,17 +181,18 @@ export function CartPanel() {
                             <Plus size={11} aria-hidden="true" />
                           </button>
                         </div>
-                        <p className="text-xs font-semibold tabular-nums text-mist-100">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold tabular-nums text-mist-100">
                           {line.priceCny !== null ? (
                             formatMoney(line.priceCny * line.qty, "CNY")
                           ) : (
                             <span className="font-normal text-mist-500">price n/a</span>
                           )}
+                          <PriceDropBadge change={scaleChange(priceMoves[line.id] ?? null, line.qty)} />
                         </p>
                       </div>
                     </div>
                     <button
-                      onClick={() => removeFromCart(line.id)}
+                      onClick={() => toastUndo(`${line.title} removed`, removeFromCart(line.id))}
                       aria-label={`Remove ${line.title} from cart`}
                       className="self-start rounded px-1 py-1 text-mist-500 hover:text-danger"
                     >

@@ -364,6 +364,22 @@ interface Toast {
   id: number;
   msg: string;
   type: "success" | "error" | "info";
+  /** Optional inline button — used by `toastUndo` to offer a restore. */
+  action?: { label: string; run: () => void };
+}
+
+/** Restores the state a destructive action removed. Safe to call once; a no-op if nothing was removed. */
+export type UndoFn = () => void;
+
+const NOOP_UNDO: UndoFn = () => {};
+
+/** Undo toasts stick around longer than a plain one — you need a beat to react. */
+const UNDO_TOAST_MS = 7000;
+
+function insertAt<T>(arr: T[], index: number, value: T): T[] {
+  const next = [...arr];
+  next.splice(Math.min(index, next.length), 0, value);
+  return next;
 }
 
 export type SyncStatus = "idle" | "syncing" | "synced" | "error";
@@ -457,8 +473,11 @@ interface Store {
   ratesLive: boolean;
   fmtCny: (amountCny: number) => string;
   fmtConverted: (amountCny: number) => string;
+  /** Catalog item ids the shopper hearted, oldest first. */
   wishlist: string[];
   toggleWishlist: (id: string) => void;
+  /** Returns an undo that restores the whole wishlist. */
+  clearWishlist: () => UndoFn;
   cart: SavedItem[];
   /** Total units across all cart lines — the badge number. */
   cartCount: number;
@@ -469,8 +488,10 @@ interface Store {
   itemLocations: (id: string) => ItemLocations;
   addToCart: (item: Omit<SavedItem, "qty">, qty?: number) => void;
   setCartQty: (id: string, qty: number) => void;
-  removeFromCart: (id: string) => void;
-  clearCart: () => void;
+  /** Returns an undo that puts the line back where it was. */
+  removeFromCart: (id: string) => UndoFn;
+  /** Returns an undo that restores the whole cart. */
+  clearCart: () => UndoFn;
   /** Save (or clear with null) an AI Advisor size call onto every cart/haul line with this id. */
   setItemAdvice: (itemId: string, advice: SizeAdvice | null) => void;
   /** Set (or clear with null) the manually chosen size on every cart/haul line with this id. */
@@ -479,7 +500,7 @@ interface Store {
   collection: CollectionPiece[];
   inCollection: (id: string) => boolean;
   addToCollection: (piece: Omit<CollectionPiece, "addedAt">) => void;
-  removeFromCollection: (id: string) => void;
+  removeFromCollection: (id: string) => UndoFn;
   updateCollectionPiece: (
     id: string,
     patch: Partial<Pick<CollectionPiece, "size" | "rating" | "review" | "title">>,
@@ -494,9 +515,10 @@ interface Store {
   activeHaul: Haul;
   createHaul: (name: string) => void;
   renameHaul: (id: string, name: string) => void;
-  deleteHaul: (id: string) => void;
+  /** Returns an undo that restores the haul (and re-selects it if it was active). */
+  deleteHaul: (id: string) => UndoFn;
   setHaulBudget: (id: string, budgetCny: number | null) => void;
-  removeFromHaul: (haulId: string, itemId: string) => void;
+  removeFromHaul: (haulId: string, itemId: string) => UndoFn;
   importCart: (items: SavedItem[]) => void;
   assignCartToHaul: (haulId: string) => void;
   /** Publish a haul snapshot to shared_hauls (sign-in required); optional store filter; returns the share URL. */
@@ -512,12 +534,13 @@ interface Store {
   favStores: string[];
   inLibrary: (id: string) => boolean;
   addToLibrary: (id: string) => void;
-  removeFromLibrary: (id: string) => void;
+  /** Returns an undo that re-saves the store (restoring its favorite flag too). */
+  removeFromLibrary: (id: string) => UndoFn;
   toggleFavStore: (id: string) => void;
   submitStore: (store: StoreInfo) => void;
   tracking: TrackedPkg[];
   addTracking: (pkg: TrackedPkg) => void;
-  removeTracking: (number: string) => void;
+  removeTracking: (number: string) => UndoFn;
   /** Body measurements + fit preference for the AI Advisor — persisted like everything else. */
   measurements: Measurements;
   setMeasurements: (update: Partial<Measurements>) => void;
@@ -529,6 +552,8 @@ interface Store {
   markStoreSeen: (storeId: string, ids: string[]) => void;
   toasts: Toast[];
   toast: (msg: string, type?: Toast["type"]) => void;
+  /** Toast with an "Undo" button — pair with the undo returned by a destructive action. */
+  toastUndo: (msg: string, undo: UndoFn) => void;
   /** False when Supabase config is unavailable — sign-in is disabled. */
   cloudEnabled: boolean;
   /** The resolved Supabase client, for feature code (dev panel) that needs direct queries. */
@@ -702,15 +727,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPrefsState((prev) => ({ ...prev, ...update }));
   }, []);
 
-  const toast = useCallback((msg: string, type: Toast["type"] = "success") => {
-    const id = ++toastId.current;
-    setToasts((prev) => [...prev.slice(-3), { id, msg, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3200);
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const toast = useCallback(
+    (msg: string, type: Toast["type"] = "success") => {
+      const id = ++toastId.current;
+      setToasts((prev) => [...prev.slice(-3), { id, msg, type }]);
+      setTimeout(() => dismissToast(id), 3200);
+    },
+    [dismissToast],
+  );
+
+  const toastUndo = useCallback(
+    (msg: string, undo: UndoFn) => {
+      const id = ++toastId.current;
+      const run = () => {
+        undo();
+        dismissToast(id);
+      };
+      setToasts((prev) => [...prev.slice(-3), { id, msg, type: "info", action: { label: "Undo", run } }]);
+      setTimeout(() => dismissToast(id), UNDO_TOAST_MS);
+    },
+    [dismissToast],
+  );
 
   const toggleWishlist = useCallback((id: string) => {
     setWishlist((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
+
+  const clearWishlist = useCallback((): UndoFn => {
+    const snapshot = wishlist;
+    if (snapshot.length === 0) return NOOP_UNDO;
+    setWishlist([]);
+    return () => setWishlist((prev) => (prev.length > 0 ? prev : snapshot));
+  }, [wishlist]);
 
   const addToCart = useCallback((item: Omit<SavedItem, "qty">, qty = 1) => {
     setCart((prev) => {
@@ -730,9 +782,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const removeFromCart = useCallback((id: string) => {
-    setCart((prev) => prev.filter((l) => l.id !== id));
-  }, []);
+  // The destructive actions below snapshot what they drop and hand back an undo.
+  // Each undo is a no-op if the thing is already back, so a stale toast can't duplicate it.
+  const removeFromCart = useCallback(
+    (id: string): UndoFn => {
+      const index = cart.findIndex((l) => l.id === id);
+      if (index < 0) return NOOP_UNDO;
+      const line = cart[index];
+      setCart((prev) => prev.filter((l) => l.id !== id));
+      return () => setCart((prev) => (prev.some((l) => l.id === id) ? prev : insertAt(prev, index, line)));
+    },
+    [cart],
+  );
 
   const importCart = useCallback((items: SavedItem[]) => {
     setCart((prev) => {
@@ -746,7 +807,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const clearCart = useCallback(() => setCart([]), []);
+  const clearCart = useCallback((): UndoFn => {
+    const snapshot = cart;
+    setCart([]);
+    if (snapshot.length === 0) return NOOP_UNDO;
+    // Only restore into a still-empty cart — anything added since undo wins over the snapshot.
+    return () => setCart((prev) => (prev.length > 0 ? prev : snapshot));
+  }, [cart]);
 
   // Stamp (or clear) a saved AI Advisor size call onto every matching line —
   // an item can live in the cart and one or more hauls at once, so update all.
@@ -791,9 +858,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCollection((prev) => (prev.some((p) => p.id === piece.id) ? prev : [{ ...piece, addedAt: Date.now() }, ...prev]));
   }, []);
 
-  const removeFromCollection = useCallback((id: string) => {
-    setCollection((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+  const removeFromCollection = useCallback(
+    (id: string): UndoFn => {
+      const index = collection.findIndex((p) => p.id === id);
+      if (index < 0) return NOOP_UNDO;
+      const piece = collection[index];
+      setCollection((prev) => prev.filter((p) => p.id !== id));
+      return () =>
+        setCollection((prev) => (prev.some((p) => p.id === id) ? prev : insertAt(prev, index, piece)));
+    },
+    [collection],
+  );
 
   const updateCollectionPiece = useCallback(
     (id: string, patch: Partial<Pick<CollectionPiece, "size" | "rating" | "review" | "title">>) => {
@@ -816,27 +891,54 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setHauls((prev) => prev.map((h) => (h.id === id ? { ...h, name } : h)));
   }, []);
 
-  const deleteHaul = useCallback((id: string) => {
-    setHauls((prev) => {
-      const next = prev.filter((h) => h.id !== id);
-      return next.length > 0 ? next : DEFAULT_HAULS;
-    });
-    setPrefsState((prev) =>
-      prev.activeHaulId === id ? { ...prev, activeHaulId: "main" } : prev,
-    );
-  }, []);
+  const deleteHaul = useCallback(
+    (id: string): UndoFn => {
+      const index = hauls.findIndex((h) => h.id === id);
+      if (index < 0) return NOOP_UNDO;
+      const haul = hauls[index];
+      const wasActive = prefs.activeHaulId === id;
+      // Deleting the last haul substitutes the default placeholder, which the undo has to drop again.
+      const substituted = hauls.length === 1;
+      setHauls((prev) => {
+        const next = prev.filter((h) => h.id !== id);
+        return next.length > 0 ? next : DEFAULT_HAULS;
+      });
+      setPrefsState((prev) => (prev.activeHaulId === id ? { ...prev, activeHaulId: "main" } : prev));
+      return () => {
+        setHauls((prev) => {
+          if (prev.some((h) => h.id === id)) return prev;
+          return insertAt(substituted ? [] : prev, index, haul);
+        });
+        if (wasActive) setPrefsState((prev) => ({ ...prev, activeHaulId: id }));
+      };
+    },
+    [hauls, prefs.activeHaulId],
+  );
 
   const setHaulBudget = useCallback((id: string, budgetCny: number | null) => {
     setHauls((prev) => prev.map((h) => (h.id === id ? { ...h, budgetCny } : h)));
   }, []);
 
-  const removeFromHaul = useCallback((haulId: string, itemId: string) => {
-    setHauls((prev) =>
-      prev.map((h) =>
-        h.id === haulId ? { ...h, items: h.items.filter((i) => i.id !== itemId) } : h,
-      ),
-    );
-  }, []);
+  const removeFromHaul = useCallback(
+    (haulId: string, itemId: string): UndoFn => {
+      const haul = hauls.find((h) => h.id === haulId);
+      const index = haul?.items.findIndex((i) => i.id === itemId) ?? -1;
+      if (!haul || index < 0) return NOOP_UNDO;
+      const item = haul.items[index];
+      setHauls((prev) =>
+        prev.map((h) => (h.id === haulId ? { ...h, items: h.items.filter((i) => i.id !== itemId) } : h)),
+      );
+      return () =>
+        setHauls((prev) =>
+          prev.map((h) =>
+            h.id === haulId && !h.items.some((i) => i.id === itemId)
+              ? { ...h, items: insertAt(h.items, index, item) }
+              : h,
+          ),
+        );
+    },
+    [hauls],
+  );
 
   const assignCartToHaul = useCallback(
     (haulId: string) => {
@@ -992,10 +1094,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLibrary((prev) => (prev.includes(id) ? prev : [...prev, id]));
   }, []);
 
-  const removeFromLibrary = useCallback((id: string) => {
-    setLibrary((prev) => prev.filter((x) => x !== id));
-    setFavStores((prev) => prev.filter((x) => x !== id));
-  }, []);
+  const removeFromLibrary = useCallback(
+    (id: string): UndoFn => {
+      const index = library.indexOf(id);
+      if (index < 0) return NOOP_UNDO;
+      const wasFav = favStores.includes(id);
+      setLibrary((prev) => prev.filter((x) => x !== id));
+      setFavStores((prev) => prev.filter((x) => x !== id));
+      return () => {
+        setLibrary((prev) => (prev.includes(id) ? prev : insertAt(prev, index, id)));
+        if (wasFav) setFavStores((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      };
+    },
+    [library, favStores],
+  );
 
   const toggleFavStore = useCallback((id: string) => {
     setFavStores((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -1033,9 +1145,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTracking((prev) => [pkg, ...prev.filter((p) => p.number !== pkg.number)]);
   }, []);
 
-  const removeTracking = useCallback((number: string) => {
-    setTracking((prev) => prev.filter((p) => p.number !== number));
-  }, []);
+  const removeTracking = useCallback(
+    (number: string): UndoFn => {
+      const index = tracking.findIndex((p) => p.number === number);
+      if (index < 0) return NOOP_UNDO;
+      const pkg = tracking[index];
+      setTracking((prev) => prev.filter((p) => p.number !== number));
+      return () =>
+        setTracking((prev) => (prev.some((p) => p.number === number) ? prev : insertAt(prev, index, pkg)));
+    },
+    [tracking],
+  );
 
   const snapshot = useMemo<CloudSnapshot>(
     () => ({ prefs, wishlist, cart, hauls, library, favStores, userStores, tracking, measurements, priceOverrides, storeSeen, collection }),
@@ -1378,6 +1498,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fmtConverted,
       wishlist,
       toggleWishlist,
+      clearWishlist,
       cart,
       cartCount: cart.reduce((sum, l) => sum + l.qty, 0),
       cartOpen,
@@ -1433,6 +1554,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markStoreSeen,
       toasts,
       toast,
+      toastUndo,
       cloudEnabled: sb !== null,
       sb,
       user,
@@ -1456,7 +1578,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
-      wishlist, toggleWishlist, cart, cartOpen,
+      wishlist, toggleWishlist, clearWishlist, cart, cartOpen,
       addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice, setItemSize,
       collection, addToCollection, removeFromCollection, updateCollectionPiece,
       setProfilePrefs, publishProfile, unpublishProfile,
@@ -1464,7 +1586,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromHaul, assignCartToHaul, shareHaul, shareCart, unshareHaul, setHaulPublic, allStores, library, favStores,
       addToLibrary, removeFromLibrary, toggleFavStore, submitStore,
       tracking, addTracking, removeTracking, measurements, setMeasurements,
-      priceOverrides, setPriceOverride, storeSeen, markStoreSeen, toasts, toast,
+      priceOverrides, setPriceOverride, storeSeen, markStoreSeen, toasts, toast, toastUndo,
       sb, user, profileName, syncStatus, lastSyncAt, setAuthOpen,
       signOut, syncNow,
       agentRefs, refreshAgentRefs, applyRef,
