@@ -180,6 +180,42 @@ export function parseLink(input: string, depth = 0): ParsedLink | null {
   return null;
 }
 
+/**
+ * Order to default to when a seller lists the same piece on several platforms.
+ * Taobao leads on breadth of agent support; the album viewer lets the shopper
+ * switch, so this only decides what's pre-selected.
+ */
+const MARKETPLACE_PREFERENCE: Marketplace[] = ["taobao", "weidian", "1688", "xianyu"];
+
+export interface MarketplaceLinks {
+  /** At most one link per marketplace, in preference order. */
+  all: ParsedLink[];
+  /** What to use unless the shopper picks otherwise. */
+  best: ParsedLink | null;
+}
+
+/**
+ * Resolve the raw links scraped from a Yupoo album description into one
+ * canonical item link per marketplace.
+ *
+ * Sellers paste the same item several times (a bare link, then pre-built agent
+ * links), list Weidian and Taobao side by side, and — seen in the wild — get
+ * their own copy-paste wrong, pointing an agent link at a *different* album's
+ * item. So this only trusts direct marketplace links and rebuilds everything
+ * from the parsed id, rather than reusing a seller's prebuilt agent URL (which
+ * would also hand them the affiliate commission).
+ */
+export function pickMarketplaceLinks(raw: string[]): MarketplaceLinks {
+  const byMarketplace = new Map<Marketplace, ParsedLink>();
+  for (const input of raw) {
+    const parsed = parseLink(input);
+    // First win per marketplace — the seller's own listing order.
+    if (parsed && !byMarketplace.has(parsed.marketplace)) byMarketplace.set(parsed.marketplace, parsed);
+  }
+  const all = MARKETPLACE_PREFERENCE.filter((m) => byMarketplace.has(m)).map((m) => byMarketplace.get(m)!);
+  return { all, best: all[0] ?? null };
+}
+
 /** Append a referral query fragment (e.g. "partnercode=ABC") to a built URL. */
 export function withRef(url: string | null, code: string | null | undefined): string | null {
   if (!url) return url;

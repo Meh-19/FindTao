@@ -9,6 +9,7 @@
 import { parsePriceCnyDetailed, type ParsedPrice } from "./price";
 import { cacheSet, CACHE_TTL } from "./clientCache";
 import { recordPrice } from "./priceHistory";
+import type { YupooAlbumLightResponse } from "./yupoo";
 
 /**
  * A 429 is reported distinctly (with the server's Retry-After) so callers can
@@ -16,8 +17,10 @@ import { recordPrice } from "./priceHistory";
  * failure resolves to a null description (price unknown).
  */
 export type DescriptionResult =
-  | { rateLimited: false; description: string | null }
+  | { rateLimited: false; description: string | null; links: string[] }
   | { rateLimited: true; retryAfterMs: number };
+
+const EMPTY: DescriptionResult = { rateLimited: false, description: null, links: [] };
 
 export async function fetchAlbumDescription(host: string, yupooId: string): Promise<DescriptionResult> {
   try {
@@ -29,11 +32,11 @@ export async function fetchAlbumDescription(host: string, yupooId: string): Prom
         retryAfterMs: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 5000,
       };
     }
-    if (!res.ok) return { rateLimited: false, description: null };
-    const data = (await res.json()) as { description?: string | null };
-    return { rateLimited: false, description: data.description ?? null };
+    if (!res.ok) return EMPTY;
+    const data = (await res.json()) as Partial<YupooAlbumLightResponse>;
+    return { rateLimited: false, description: data.description ?? null, links: data.links ?? [] };
   } catch {
-    return { rateLimited: false, description: null };
+    return EMPTY;
   }
 }
 
@@ -42,9 +45,24 @@ export function albumItemId(host: string, yupooId: string): string {
   return `album:${host}:${yupooId}`;
 }
 
-/** Persist a resolved price: refresh the TTL cache and append to the item's history. */
-export function commitAlbumPrice(host: string, yupooId: string, price: ParsedPrice | null): void {
-  cacheSet<{ p: ParsedPrice | null }>("price", `${host}:${yupooId}`, { p: price }, CACHE_TTL.price);
+/**
+ * What a scraped album description yields, cached per album. `l` is optional so
+ * entries written before links were scraped still read back as a valid price.
+ */
+export interface AlbumScrapeCache {
+  p: ParsedPrice | null;
+  /** Raw marketplace item links from the description — feed to pickMarketplaceLinks. */
+  l?: string[];
+}
+
+/** Persist a resolved scrape: refresh the TTL cache and append the price to the item's history. */
+export function commitAlbumPrice(
+  host: string,
+  yupooId: string,
+  price: ParsedPrice | null,
+  links: string[] = [],
+): void {
+  cacheSet<AlbumScrapeCache>("price", `${host}:${yupooId}`, { p: price, l: links }, CACHE_TTL.price);
   if (price) recordPrice(albumItemId(host, yupooId), price.value);
 }
 
@@ -67,6 +85,6 @@ export async function fetchAlbumPriceFresh(
   // A rate-limited miss is "unknown", not "no price" — don't let it poison the history.
   if (result.rateLimited) return null;
   const price = parsePriceCnyDetailed(result.description ?? fallbackText);
-  commitAlbumPrice(host, yupooId, price);
+  commitAlbumPrice(host, yupooId, price, result.links);
   return price;
 }

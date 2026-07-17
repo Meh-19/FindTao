@@ -8,14 +8,8 @@ import type { MarketplacePreview } from "@/lib/marketplacePreview";
 import { formatMoney } from "@/lib/currency";
 import { useStore } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
+import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { AgentActions } from "./AgentActions";
-
-const MARKETPLACE_LABEL: Record<ParsedLink["marketplace"], string> = {
-  taobao: "Taobao",
-  weidian: "Weidian",
-  "1688": "1688",
-  xianyu: "Xianyu",
-};
 
 /**
  * "Reads the data like an agent does" for a pasted marketplace item link:

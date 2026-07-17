@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link2, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
-import { parseLink } from "@/lib/links";
+import { pickMarketplaceLinks, type Marketplace } from "@/lib/links";
+import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { parsePriceCnyDetailed } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
@@ -90,15 +91,16 @@ export function AlbumModal({
     };
   }, [live, host, album.yupooId]);
 
-  // Sellers often paste the item's marketplace link into the album
-  // description — when one parses, offer the agent hand-off right here.
-  const marketplaceLink = useMemo(() => {
-    for (const raw of itemLinks) {
-      const parsed = parseLink(raw);
-      if (parsed) return parsed;
-    }
-    return null;
-  }, [itemLinks]);
+  // Sellers paste the item's real marketplace links into the album description,
+  // often listing the same piece on both Weidian and Taobao — surface every one
+  // they gave and let the shopper choose which to hand their agent.
+  const market = useMemo(() => pickMarketplaceLinks(itemLinks), [itemLinks]);
+  const [chosen, setChosen] = useState<Marketplace | null>(null);
+  const marketplaceLink =
+    market.all.find((l) => l.marketplace === chosen) ?? market.best;
+
+  // A different album's links replace these — drop a choice that no longer applies.
+  useEffect(() => setChosen(null), [album.yupooId]);
 
   const total = photos && photos.length > 0 ? photos.length : Math.max(album.photoCount, 1);
   const loading = photos === null;
@@ -268,6 +270,27 @@ export function AlbumModal({
 
             {marketplaceLink && (
               <div className="flex items-center gap-2">
+                {/* Only worth a switcher when the seller actually listed it in more than one place. */}
+                {market.all.length > 1 && (
+                  <div className="flex shrink-0 items-center rounded-none border border-ink-500">
+                    {market.all.map((l) => {
+                      const active = l.marketplace === marketplaceLink.marketplace;
+                      return (
+                        <button
+                          key={l.marketplace}
+                          onClick={() => setChosen(l.marketplace)}
+                          aria-pressed={active}
+                          title={`Buy this from ${MARKETPLACE_LABEL[l.marketplace]}`}
+                          className={`px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide transition-colors ${
+                            active ? "bg-neon-600/25 text-neon-300" : "text-mist-500 hover:text-mist-100"
+                          }`}
+                        >
+                          {MARKETPLACE_LABEL[l.marketplace]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <AgentActions link={marketplaceLink} dropUp />
                 </div>
@@ -280,6 +303,18 @@ export function AlbumModal({
                   <Link2 size={16} aria-hidden="true" />
                 </Link>
               </div>
+            )}
+
+            {/* Absence is worth stating: it's the difference between "buy this now"
+                and "you'll have to ask the seller for a link". */}
+            {!marketplaceLink && !loading && (
+              <p className="text-[11px] text-mist-500">
+                No Taobao or Weidian link in this listing — ask the seller, or paste one into the{" "}
+                <Link href="/convert" onClick={onClose} className="text-neon-300 hover:text-neon-400">
+                  converter
+                </Link>
+                .
+              </p>
             )}
           </div>
         )}

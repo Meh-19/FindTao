@@ -496,6 +496,11 @@ interface Store {
   setItemAdvice: (itemId: string, advice: SizeAdvice | null) => void;
   /** Set (or clear with null) the manually chosen size on every cart/haul line with this id. */
   setItemSize: (itemId: string, size: string | null) => void;
+  /**
+   * Fill in the marketplace product URL on saved lines that don't have one yet.
+   * Never overwrites an existing url — see the implementation.
+   */
+  backfillItemUrl: (itemId: string, url: string) => void;
   /** Owned pieces with size + quick review — the shopper's collection. */
   collection: CollectionPiece[];
   inCollection: (id: string) => boolean;
@@ -852,6 +857,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         h.items.some((i) => i.id === itemId) ? { ...h, items: h.items.map(apply) } : h,
       ),
     );
+  }, []);
+
+  /**
+   * Attach the seller's marketplace link to lines saved before we knew it —
+   * anything quick-added from a store grid used to land with `url: null`, which
+   * left the agent hand-off and the haul link export with nothing to build from.
+   * Only fills a blank: a url already on the line (the shopper picked that
+   * marketplace in the album viewer) is theirs, not ours to overwrite.
+   */
+  const backfillItemUrl = useCallback((itemId: string, url: string) => {
+    const apply = (item: SavedItem): SavedItem =>
+      item.id === itemId && !item.url ? { ...item, url } : item;
+    const needs = (items: SavedItem[]) => items.some((i) => i.id === itemId && !i.url);
+    setCart((prev) => (needs(prev) ? prev.map(apply) : prev));
+    setHauls((prev) => (prev.some((h) => needs(h.items)) ? prev.map((h) => ({ ...h, items: h.items.map(apply) })) : prev));
   }, []);
 
   const addToCollection = useCallback((piece: Omit<CollectionPiece, "addedAt">) => {
@@ -1514,6 +1534,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearCart,
       setItemAdvice,
       setItemSize,
+      backfillItemUrl,
       collection,
       inCollection: (id) => collection.some((p) => p.id === id),
       addToCollection,
@@ -1579,7 +1600,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [
       hydrated, prefs, setPrefs, rates, ratesLive, fmtCny, fmtConverted,
       wishlist, toggleWishlist, clearWishlist, cart, cartOpen,
-      addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice, setItemSize,
+      addToCart, setCartQty, removeFromCart, importCart, clearCart, setItemAdvice, setItemSize, backfillItemUrl,
       collection, addToCollection, removeFromCollection, updateCollectionPiece,
       setProfilePrefs, publishProfile, unpublishProfile,
       hauls, activeHaul, createHaul, renameHaul, deleteHaul, setHaulBudget,

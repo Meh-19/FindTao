@@ -6,9 +6,8 @@ import { ExternalLink, Link2 } from "lucide-react";
 import { isShortLink, parseLink, toAgentUrl } from "@/lib/links";
 import { ACTIVE_AGENTS } from "@/lib/agents";
 import { useStore } from "@/lib/store";
+import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { CopyButton } from "./CopyButton";
-
-const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
 
 export function Converter() {
   const initial = useSearchParams().get("link") ?? "";

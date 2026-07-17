@@ -1,6 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { canonicalUrl, isShortLink, parseLink, toAgentUrl } from "./links";
+import { canonicalUrl, isShortLink, parseLink, pickMarketplaceLinks, toAgentUrl } from "./links";
 import { AGENTS, getAgent } from "./agents";
+
+describe("pickMarketplaceLinks", () => {
+  // The shapes below are real links scraped from live Yupoo album descriptions.
+  it("keeps one link per marketplace and defaults to taobao", () => {
+    const { all, best } = pickMarketplaceLinks([
+      "https://weidian.com/item.html?itemID=7734582865",
+      "https://item.taobao.com/item.htm?ft=t&id=1041917371194",
+    ]);
+    expect(all.map((l) => l.marketplace)).toEqual(["taobao", "weidian"]);
+    expect(best).toMatchObject({ marketplace: "taobao", itemId: "1041917371194" });
+  });
+
+  it("dedupes repeats of the same marketplace, keeping the seller's first", () => {
+    const { all } = pickMarketplaceLinks([
+      "https://item.taobao.com/item.htm?ft=t&id=111",
+      "https://item.taobao.com/item.htm?id=222",
+    ]);
+    expect(all).toHaveLength(1);
+    expect(all[0].itemId).toBe("111");
+  });
+
+  it("falls back to whatever the seller listed when there's no taobao link", () => {
+    const { best } = pickMarketplaceLinks(["https://weidian.com/item.html?itemID=7801369814"]);
+    expect(best).toMatchObject({ marketplace: "weidian", itemId: "7801369814" });
+  });
+
+  it("returns nothing for a description with no marketplace links", () => {
+    expect(pickMarketplaceLinks(["https://example.com", "not a url"])).toEqual({ all: [], best: null });
+  });
+
+  it("rebuilds a canonical url rather than echoing the seller's tracking-laden one", () => {
+    const { best } = pickMarketplaceLinks(["https://item.taobao.com/item.htm?ft=t&id=1041917371194&spm=tracking"]);
+    expect(best!.rawUrl).toBe("https://item.taobao.com/item.htm?id=1041917371194");
+  });
+});
 
 describe("parseLink — marketplaces", () => {
   it("parses a standard taobao item link", () => {

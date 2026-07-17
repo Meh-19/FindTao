@@ -25,8 +25,30 @@ function decodeEntities(s: string): string {
     .replaceAll("&gt;", ">");
 }
 
+/**
+ * Direct marketplace hosts only — deliberately NOT agent hosts. Sellers paste
+ * pre-built agent links carrying their own referral code, and those links are
+ * sometimes wrong (seen in the wild: a Kakobuy link pointing at a different
+ * album's item). Matching only bare marketplace URLs means the app rebuilds
+ * every agent link itself, from an id it parsed. Encoded copies inside agent
+ * URLs (`https%3A%2F%2Fitem.taobao.com...`) can't match this, which is the point.
+ */
 const linkRe =
   /https?:\/\/(?:(?:item|detail|world|main|h5)\.(?:taobao|tmall)\.com|(?:www\.)?weidian\.com|detail\.1688\.com|(?:www\.)?goofish\.com)[^"'<>\s]*/g;
+
+/** Distinct marketplace item URLs in the given text, capped — a description lists a handful at most. */
+function extractItemLinks(source: string): string[] {
+  const links: string[] = [];
+  const seen = new Set<string>();
+  for (const m of source.matchAll(linkRe)) {
+    const url = m[0];
+    if (!seen.has(url) && links.length < 5) {
+      seen.add(url);
+      links.push(url);
+    }
+  }
+  return links;
+}
 
 /**
  * The album's real description — sellers write the CNY price ("￥270") as the
@@ -68,11 +90,11 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const host = params.get("host") ?? "";
   const id = params.get("id") ?? "";
-  // Store pages bulk-prefetch the description (for price) of every album on
-  // load — `light=1` skips the photo-list scan for those calls so the
-  // response for ~20 parallel requests isn't dragging a full photo array
-  // each. The full fetch (photos included) still runs when a shopper
-  // actually opens the album.
+  // Store pages bulk-prefetch the description (for price + the seller's
+  // marketplace links) of every album on load — `light=1` skips the photo-list
+  // scan for those calls so the response for ~20 parallel requests isn't
+  // dragging a full photo array each. The full fetch (photos included) still
+  // runs when a shopper actually opens the album.
   const light = params.get("light") === "1";
   if (!isValidYupooHost(host) || !/^\d+$/.test(id)) {
     return Response.json({ error: "invalid params" }, { status: 400 });
@@ -90,9 +112,15 @@ export async function GET(request: Request) {
 
     const description = extractDescription(html);
 
+    // Scan the description first (accurate — it's just this album's text). The
+    // whole-page fallback is full-fetch only: it's the less accurate source
+    // (nav/sidebar albums leak in) and light mode runs ~120× per store load,
+    // so paying for it in bulk buys inaccuracy at scale.
+    const links = extractItemLinks(light ? (description ?? "") : (description ?? decodeEntities(html)));
+
     if (light) {
       return Response.json(
-        { description },
+        { description, links },
         { headers: { "Cache-Control": "public, max-age=900" } },
       );
     }
@@ -104,18 +132,6 @@ export async function GET(request: Request) {
       if (!seen.has(url)) {
         seen.add(url);
         photos.push(url);
-      }
-    }
-
-    // Scan the description first (accurate — it's just this album's text);
-    // fall back to the full page only if we couldn't isolate a description.
-    const links: string[] = [];
-    const seenLinks = new Set<string>();
-    for (const m of (description ?? decodeEntities(html)).matchAll(linkRe)) {
-      const url = m[0];
-      if (!seenLinks.has(url) && links.length < 5) {
-        seenLinks.add(url);
-        links.push(url);
       }
     }
 

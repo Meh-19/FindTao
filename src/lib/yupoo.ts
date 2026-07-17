@@ -22,6 +22,12 @@ export interface YupooPhotosResponse {
   description?: string | null;
 }
 
+/** What `/api/yupoo/album?light=1` returns: the description (for price) and its item links, no photo scan. */
+export interface YupooAlbumLightResponse {
+  description: string | null;
+  links: string[];
+}
+
 export function isValidYupooHost(host: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,62}$/i.test(host);
 }

@@ -12,7 +12,9 @@ import { parsePriceCnyDetailed, type ParsedPrice } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
-import { albumItemId, commitAlbumPrice, fetchAlbumDescription } from "@/lib/albumPrice";
+import { albumItemId, commitAlbumPrice, fetchAlbumDescription, type AlbumScrapeCache } from "@/lib/albumPrice";
+import { pickMarketplaceLinks } from "@/lib/links";
+import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { lastPriceChanges } from "@/lib/priceHistory";
 import { PriceDropBadge } from "./PriceDropBadge";
 import { StoreAvatar } from "./StoreAvatar";
@@ -118,7 +120,7 @@ export function StoreView({ id }: { id: string }) {
   const {
     allStores, inLibrary, addToLibrary, removeFromLibrary,
     favStores, toggleFavStore, toast, toastUndo, hydrated, tagDefs, fmtConverted, addToCart, itemLocations, catalogItems,
-    inCart, activeHaul, priceOverrides, setPriceOverride, storeSeen, markStoreSeen,
+    inCart, activeHaul, priceOverrides, setPriceOverride, storeSeen, markStoreSeen, backfillItemUrl,
   } = useStore();
   const store = allStores.find((s) => s.id === id);
   const items = storeItems(catalogItems, id);
@@ -299,11 +301,15 @@ export function StoreView({ id }: { id: string }) {
   // AlbumModal) — pull them all in as the grid loads so quick-add uses the
   // real price and shoppers don't have to open every album just to see it.
   const [albumPrices, setAlbumPrices] = useState<Record<string, ParsedPrice | null>>({});
+  // Raw marketplace links from the same description scrape — what makes an
+  // album a real product (agent hand-off, accurate cart line) and not just photos.
+  const [albumLinks, setAlbumLinks] = useState<Record<string, string[]>>({});
   const requestedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     requestedRef.current = new Set();
     setAlbumPrices({});
+    setAlbumLinks({});
   }, [yupooHost]);
 
   useEffect(() => {
@@ -313,18 +319,21 @@ export function StoreView({ id }: { id: string }) {
     // Cached values include a genuine "no price found" (stored as {p:null}) so
     // we don't re-scrape a description that never had one — see cacheSet below.
     const seeded: Record<string, ParsedPrice | null> = {};
+    const seededLinks: Record<string, string[]> = {};
     const toFetch: { id: string; yupooId: string; name: string }[] = [];
     for (const a of albums) {
       if (!a.yupooId || requestedRef.current.has(a.id)) continue;
-      const cached = cacheGet<{ p: ParsedPrice | null }>("price", `${yupooHost}:${a.yupooId}`);
+      const cached = cacheGet<AlbumScrapeCache>("price", `${yupooHost}:${a.yupooId}`);
       if (cached) {
         requestedRef.current.add(a.id);
         seeded[a.id] = cached.p;
+        if (cached.l) seededLinks[a.id] = cached.l;
       } else {
         toFetch.push({ id: a.id, yupooId: a.yupooId, name: a.name });
       }
     }
     if (Object.keys(seeded).length > 0) setAlbumPrices((prev) => ({ ...prev, ...seeded }));
+    if (Object.keys(seededLinks).length > 0) setAlbumLinks((prev) => ({ ...prev, ...seededLinks }));
     if (toFetch.length === 0) return;
     for (const a of toFetch) requestedRef.current.add(a.id);
 
@@ -347,7 +356,10 @@ export function StoreView({ id }: { id: string }) {
         setAlbumPrices((prev) => ({ ...prev, [album.id]: parsed }));
         // Cache (and log to price history) only a real lookup — a rate-limited
         // miss should retry next time, and must never land in the history.
-        if (!result.rateLimited) commitAlbumPrice(yupooHost!, album.yupooId, parsed);
+        if (!result.rateLimited) {
+          setAlbumLinks((prev) => ({ ...prev, [album.id]: result.links }));
+          commitAlbumPrice(yupooHost!, album.yupooId, parsed, result.links);
+        }
       }
     }
     for (let i = 0; i < Math.min(PRICE_PREFETCH_CONCURRENCY, toFetch.length); i++) worker();
@@ -355,6 +367,18 @@ export function StoreView({ id }: { id: string }) {
       cancelled = true;
     };
   }, [yupooHost, albums]);
+
+  // Anything already in the cart or a haul that predates link scraping (or was
+  // quick-added before this store's descriptions loaded) gets its real product
+  // link filled in as the grid learns it.
+  useEffect(() => {
+    if (!yupooHost) return;
+    for (const [albumId, raw] of Object.entries(albumLinks)) {
+      const best = pickMarketplaceLinks(raw).best;
+      const yupooId = albums.find((a) => a.id === albumId)?.yupooId;
+      if (best && yupooId) backfillItemUrl(albumItemId(yupooHost, yupooId), best.rawUrl);
+    }
+  }, [albumLinks, albums, yupooHost, backfillItemUrl]);
 
   // Price moves for the albums on screen, recomputed when a prefetch lands
   // (that's what writes the history) rather than on every render.
@@ -543,6 +567,9 @@ export function StoreView({ id }: { id: string }) {
                 const inHaulNow = !!cartId && activeHaul.items.some((it) => it.id === cartId);
                 const isNew = unseenNew.has(album.id);
                 const isEditing = editingPriceId === album.id;
+                // The seller's real Taobao/Weidian listing, scraped from the
+                // description — this is what turns a tile into a buyable product.
+                const market = pickMarketplaceLinks(albumLinks[album.id] ?? []);
                 return (
                   <div
                     key={album.id}
@@ -619,6 +646,19 @@ export function StoreView({ id }: { id: string }) {
                         ) : null}
                         {/* A move only shows on the scraped price — a manual override is the shopper's own number. */}
                         {override === undefined && <PriceDropBadge change={priceMoves[album.id] ?? null} className="mt-1.5" />}
+                        {market.all.length > 0 && (
+                          <p className="mt-1.5 flex flex-wrap gap-1">
+                            {market.all.map((l) => (
+                              <span
+                                key={l.marketplace}
+                                title={`Seller listed this on ${MARKETPLACE_LABEL[l.marketplace]} — hand it straight to your agent`}
+                                className="border border-aqua-400/30 bg-aqua-400/5 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-aqua-300"
+                              >
+                                {MARKETPLACE_LABEL[l.marketplace]}
+                              </span>
+                            ))}
+                          </p>
+                        )}
                         {price === null && (
                           <p className="mt-1.5 text-[11px] text-mist-500">
                             {canQuickAdd ? "No price — tap ¥ to set" : "Tap for details"}
@@ -676,7 +716,7 @@ export function StoreView({ id }: { id: string }) {
                                 imgHost: yupooHost,
                                 storeId: store!.id,
                                 storeName: store!.name,
-                                url: null,
+                                url: market.best?.rawUrl ?? null,
                               });
                               toast(notice ?? `Added ${album.name.slice(0, 40)} to cart`, notice ? "info" : "success");
                             }}

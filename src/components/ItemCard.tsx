@@ -4,10 +4,10 @@ import Link from "next/link";
 import { Check, Heart, Plus } from "lucide-react";
 import type { CatalogItem } from "@/data/catalog";
 import { itemStore, itemLink } from "@/data/catalog";
+import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { Thumb } from "./Thumb";
 import { useStore, duplicateNotice, type SavedItem } from "@/lib/store";
 
-const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
 
 /** Catalog items become cart lines under the `cat:` id namespace. */
 export function catalogToSaved(item: CatalogItem): Omit<SavedItem, "qty"> {

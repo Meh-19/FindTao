@@ -12,8 +12,7 @@ import { CopyButton } from "./CopyButton";
 import { catalogToSaved } from "./ItemCard";
 import { useStore, duplicateNotice } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
-
-const MARKETPLACE_LABEL = { taobao: "Taobao", weidian: "Weidian", "1688": "1688", xianyu: "Xianyu" } as const;
+import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 
 function QcModal({ item, start, onClose }: { item: CatalogItem; start: number; onClose: () => void }) {
   const [idx, setIdx] = useState(start);
