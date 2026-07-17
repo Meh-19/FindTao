@@ -15,6 +15,7 @@ import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
 import { OtherSellers } from "./OtherSellers";
+import { ProductFacts } from "./ProductFacts";
 import { StoreAvatar } from "./StoreAvatar";
 import { Lightbox } from "./Lightbox";
 
@@ -310,6 +311,8 @@ export function AlbumModal({
                 </Link>
               </div>
             )}
+
+            {marketplaceLink && <ProductFacts link={marketplaceLink} albumPriceCny={priceCny} />}
 
             {marketplaceLink && (
               <OtherSellers

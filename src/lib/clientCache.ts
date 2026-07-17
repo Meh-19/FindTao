@@ -26,6 +26,8 @@ export const CACHE_TTL = {
   albums: 12 * 3600_000,
   price: 24 * 3600_000,
   photos: 24 * 3600_000,
+  /** Product facts are metered per lookup — cache them as long as the server does. */
+  product: 24 * 3600_000,
 } as const;
 
 function fullKey(ns: string, id: string): string {
