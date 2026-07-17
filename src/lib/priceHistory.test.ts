@@ -1,8 +1,21 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getHistory, latestPrice, lastPriceChange, priceChangeSince, priceChangesSince, recordPrice, scaleChange } from "./priceHistory";
+import {
+  flushPriceHistory,
+  getHistory,
+  latestPrice,
+  lastPriceChange,
+  priceChangeSince,
+  priceChangesSince,
+  recordPrice,
+  resetPriceHistoryCache,
+  scaleChange,
+} from "./priceHistory";
 
 // These run in node, where localStorage doesn't exist — stand up the bits the module uses.
+// The module keeps an in-memory copy of the history, so that has to be dropped
+// alongside the storage or state leaks between tests.
 function stubStorage() {
+  resetPriceHistoryCache();
   const map = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
@@ -13,6 +26,7 @@ function stubStorage() {
       clear: () => map.clear(),
     },
   });
+  return map;
 }
 
 const ID = "album:firerep:12345";
@@ -50,6 +64,43 @@ describe("recordPrice", () => {
     for (let i = 1; i <= 20; i++) recordPrice(ID, 100 + i);
     expect(getHistory(ID).length).toBeLessThanOrEqual(8);
     expect(latestPrice(ID)!.cny).toBe(120);
+  });
+});
+
+describe("write coalescing", () => {
+  /**
+   * PERF REGRESSION: a store page records ~120 prices in a burst. Serialising
+   * the whole blob per record made the cost quadratic in accumulated history.
+   */
+  it("does not serialise the whole blob on every record", () => {
+    const map = new Map<string, string>();
+    let writes = 0;
+    resetPriceHistoryCache();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => map.get(k) ?? null,
+        setItem: (k: string, v: string) => {
+          writes++;
+          map.set(k, v);
+        },
+        removeItem: (k: string) => void map.delete(k),
+        clear: () => map.clear(),
+      },
+    });
+
+    for (let i = 0; i < 120; i++) recordPrice(`album:firerep:${i}`, 100 + i);
+    expect(writes).toBe(0); // deferred, not one write per album
+    // Reads still see everything immediately — the in-memory copy is the source.
+    expect(latestPrice("album:firerep:119")).toMatchObject({ cny: 219 });
+  });
+
+  it("persists a coalesced burst on flush (what pagehide triggers)", () => {
+    const map = stubStorage();
+    for (let i = 0; i < 5; i++) recordPrice(`album:firerep:${i}`, 100 + i);
+    expect(map.get("findtao:pricehist")).toBeUndefined();
+    flushPriceHistory();
+    expect(Object.keys(JSON.parse(map.get("findtao:pricehist") ?? "{}"))).toHaveLength(5);
   });
 });
 

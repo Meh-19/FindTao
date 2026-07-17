@@ -26,22 +26,63 @@ export interface PricePoint {
 /** Newest-last list of *distinct* observed prices, keyed by item id. */
 type History = Record<string, PricePoint[]>;
 
+/**
+ * PERF: a store page records a price per album — ~120 in a burst. Parsing and
+ * re-serialising the whole blob for each of those made the cost quadratic in
+ * how much history you'd built up. The parsed copy is held in memory and writes
+ * are coalesced, so a burst costs one parse and one write instead of 120 of each.
+ */
+let memo: History | null = null;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+/** Long enough to swallow a scrape burst, short enough that a tab close rarely beats it. */
+const FLUSH_MS = 400;
+
 function readAll(): History {
+  if (memo) return memo;
   try {
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as History) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
+    memo = parsed && typeof parsed === "object" ? parsed : {};
   } catch {
-    return {};
+    memo = {};
+  }
+  return memo;
+}
+
+/** Write the coalesced history out now. Fires on a timer, and before the page goes away. */
+export function flushPriceHistory(): void {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (!memo) return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(memo));
+  } catch {
+    /* quota or storage disabled — history is a nicety, never a hard failure */
   }
 }
 
 function writeAll(h: History): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(h));
-  } catch {
-    /* quota or storage disabled — history is a nicety, never a hard failure */
+  memo = h;
+  if (flushTimer === null) flushTimer = setTimeout(flushPriceHistory, FLUSH_MS);
+}
+
+// Don't lose a coalesced burst to a tab close or a background switch.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flushPriceHistory);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushPriceHistory();
+  });
+}
+
+/** Drop the in-memory copy, for when storage is replaced underneath us (tests, sign-out). */
+export function resetPriceHistoryCache(): void {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
   }
+  memo = null;
 }
 
 /** Drop the least-recently-updated items once the blob outgrows MAX_ITEMS. */

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, ExternalLink, Images, Plus, Search, ShoppingCart, Star } from "lucide-react";
 import { storeItems } from "@/data/catalog";
@@ -13,7 +13,7 @@ import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { albumItemId, commitAlbumPrice, fetchAlbumDescription, type AlbumScrapeCache } from "@/lib/albumPrice";
-import { pickMarketplaceLinks, productKey } from "@/lib/links";
+import { pickMarketplaceLinks, productKey, type MarketplaceLinks } from "@/lib/links";
 import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { recordSightings, sightingCounts, type ProductSighting } from "@/lib/productIndex";
 import { lastPriceChanges } from "@/lib/priceHistory";
@@ -49,6 +49,12 @@ async function fetchAlbums(
 }
 
 const PRICE_PREFETCH_CONCURRENCY = 6;
+
+/** How long resolved prices pool before painting. Short enough to feel live, long enough to batch. */
+const PRICE_FLUSH_MS = 200;
+
+/** Stable empty value so tiles without links don't allocate a fresh object each render. */
+const EMPTY_MARKET: MarketplaceLinks = { all: [], best: null };
 
 /**
  * Preview card for marketplace-hosted stores. Weidian shops get their live
@@ -241,6 +247,12 @@ export function StoreView({ id }: { id: string }) {
   const liveMode = yupooHost !== null && !liveFailed;
   const albums = liveMode ? (liveAlbums ?? []) : platform.platform === "other" ? placeholderAlbums : [];
   const albumsLoading = liveMode && liveAlbums === null;
+  /**
+   * Which albums are on screen, by content rather than array identity. The
+   * background revalidation re-creates the same albums as fresh objects, and
+   * effects keyed on identity would tear themselves down for no reason.
+   */
+  const albumsKey = useMemo(() => albums.map((a) => a.id).join(","), [albums]);
 
   // "New release" tracking: on this visit, albums not seen before this store was
   // last opened get a glowing ring that clears when the shopper hovers them.
@@ -307,11 +319,52 @@ export function StoreView({ id }: { id: string }) {
   const [albumLinks, setAlbumLinks] = useState<Record<string, string[]>>({});
   const requestedRef = useRef<Set<string>>(new Set());
 
+  // PERF: the prefetch resolves ~120 albums independently, and setting state per
+  // album re-rendered the whole grid 120 times — each render re-running the
+  // derived memos below and re-reading localStorage. Results are collected here
+  // and flushed together, which collapses that into a handful of renders.
+  const pendingRef = useRef<{ prices: Record<string, ParsedPrice | null>; links: Record<string, string[]> }>({
+    prices: {},
+    links: {},
+  });
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPending = useCallback(() => {
+    flushTimer.current = null;
+    const { prices, links } = pendingRef.current;
+    pendingRef.current = { prices: {}, links: {} };
+    if (Object.keys(prices).length > 0) setAlbumPrices((prev) => ({ ...prev, ...prices }));
+    if (Object.keys(links).length > 0) setAlbumLinks((prev) => ({ ...prev, ...links }));
+  }, []);
+
+  const queueResult = useCallback(
+    (albumId: string, price: ParsedPrice | null, links: string[] | null) => {
+      pendingRef.current.prices[albumId] = price;
+      if (links) pendingRef.current.links[albumId] = links;
+      if (flushTimer.current === null) flushTimer.current = setTimeout(flushPending, PRICE_FLUSH_MS);
+    },
+    [flushPending],
+  );
+
   useEffect(() => {
     requestedRef.current = new Set();
+    // Drop anything queued for the store we just left — a pending flush would
+    // otherwise paint its prices onto the new store's grid.
+    if (flushTimer.current !== null) {
+      clearTimeout(flushTimer.current);
+      flushTimer.current = null;
+    }
+    pendingRef.current = { prices: {}, links: {} };
     setAlbumPrices({});
     setAlbumLinks({});
   }, [yupooHost]);
+
+  // Never leave a queued batch behind on unmount.
+  useEffect(() => {
+    return () => {
+      if (flushTimer.current !== null) clearTimeout(flushTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!yupooHost) return;
@@ -336,6 +389,8 @@ export function StoreView({ id }: { id: string }) {
     if (Object.keys(seeded).length > 0) setAlbumPrices((prev) => ({ ...prev, ...seeded }));
     if (Object.keys(seededLinks).length > 0) setAlbumLinks((prev) => ({ ...prev, ...seededLinks }));
     if (toFetch.length === 0) return;
+    // Claim these so a re-run doesn't double-fetch them. Anything still unclaimed
+    // when this run is torn down gets released again — see the cleanup below.
     for (const a of toFetch) requestedRef.current.add(a.id);
 
     let cancelled = false;
@@ -354,31 +409,60 @@ export function StoreView({ id }: { id: string }) {
         if (cancelled) return;
         const description = result.rateLimited ? null : result.description;
         const parsed = parsePriceCnyDetailed(description ?? album.name);
-        setAlbumPrices((prev) => ({ ...prev, [album.id]: parsed }));
         // Cache (and log to price history) only a real lookup — a rate-limited
         // miss should retry next time, and must never land in the history.
-        if (!result.rateLimited) {
-          setAlbumLinks((prev) => ({ ...prev, [album.id]: result.links }));
-          commitAlbumPrice(yupooHost!, album.yupooId, parsed, result.links);
-        }
+        if (!result.rateLimited) commitAlbumPrice(yupooHost!, album.yupooId, parsed, result.links);
+        queueResult(album.id, parsed, result.rateLimited ? null : result.links);
       }
     }
     for (let i = 0; i < Math.min(PRICE_PREFETCH_CONCURRENCY, toFetch.length); i++) worker();
     return () => {
       cancelled = true;
+      // BUG FIX: albums were claimed up front but stayed claimed when a run was
+      // torn down, so the next run saw "already requested", fetched nothing, and
+      // those albums never got a price. Release everything this run didn't
+      // finish. (`cursor` has passed the in-flight ones, so rewind past those
+      // the workers are still awaiting.)
+      for (let i = Math.max(0, cursor - PRICE_PREFETCH_CONCURRENCY); i < toFetch.length; i++) {
+        requestedRef.current.delete(toFetch[i].id);
+      }
     };
-  }, [yupooHost, albums]);
+    // `albums` is keyed by id, not identity: the background revalidation returns
+    // the same albums as fresh objects, and re-running on that would cancel the
+    // prefetch mid-flight for no gain.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yupooHost, albumsKey, queueResult]);
 
-  // As the grid learns each album's product link: fill in that link on any
-  // saved line still missing one, and log the listing to the cross-store index
-  // so this store can be compared against every other seller of the same item.
+  // Parsed marketplace links per album. PERF: the tiles used to call
+  // pickMarketplaceLinks inline, re-parsing every album's URLs on every render.
+  const marketByAlbum = useMemo(() => {
+    const out: Record<string, MarketplaceLinks> = {};
+    for (const [albumId, raw] of Object.entries(albumLinks)) out[albumId] = pickMarketplaceLinks(raw);
+    return out;
+  }, [albumLinks]);
+
+  const albumById = useMemo(() => new Map(albums.map((a) => [a.id, a])), [albums]);
+
+  // As the grid learns each album's product link: fill in that link on any saved
+  // line still missing one, and log the listing to the cross-store index so this
+  // store can be compared against every other seller of the same item.
+  //
+  // PERF: each album is handled once. This used to re-walk every known album on
+  // every update and rewrite the whole index blob each time.
+  const indexedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    indexedRef.current = new Set();
+  }, [yupooHost]);
+
   useEffect(() => {
     if (!yupooHost || !store) return;
     const sightings: { key: string; sighting: ProductSighting }[] = [];
-    for (const [albumId, raw] of Object.entries(albumLinks)) {
-      const album = albums.find((a) => a.id === albumId);
-      const best = pickMarketplaceLinks(raw).best;
+    for (const [albumId, market] of Object.entries(marketByAlbum)) {
+      if (indexedRef.current.has(albumId)) continue;
+      const album = albumById.get(albumId);
+      const best = market.best;
       if (!best || !album?.yupooId) continue;
+      indexedRef.current.add(albumId);
       backfillItemUrl(albumItemId(yupooHost, album.yupooId), best.rawUrl);
       sightings.push({
         key: productKey(best),
@@ -394,21 +478,20 @@ export function StoreView({ id }: { id: string }) {
       });
     }
     recordSightings(sightings);
-  }, [albumLinks, albumPrices, albums, yupooHost, store, backfillItemUrl]);
+  }, [marketByAlbum, albumPrices, albumById, yupooHost, store, backfillItemUrl]);
 
-  // How many stores sell each album's product — recomputed once per link batch
-  // rather than per tile, since the index is a single parsed blob.
+  // How many stores sell each album's product — one pass over the index per
+  // batch, not per tile.
   const sellerCounts = useMemo(() => {
-    const out: Record<string, number> = {};
     const keyByAlbum: Record<string, string> = {};
-    for (const [albumId, raw] of Object.entries(albumLinks)) {
-      const best = pickMarketplaceLinks(raw).best;
-      if (best) keyByAlbum[albumId] = productKey(best);
+    for (const [albumId, market] of Object.entries(marketByAlbum)) {
+      if (market.best) keyByAlbum[albumId] = productKey(market.best);
     }
     const counts = sightingCounts(Object.values(keyByAlbum));
+    const out: Record<string, number> = {};
     for (const [albumId, key] of Object.entries(keyByAlbum)) out[albumId] = counts[key] ?? 0;
     return out;
-  }, [albumLinks]);
+  }, [marketByAlbum]);
 
   // Price moves for the albums on screen, recomputed when a prefetch lands
   // (that's what writes the history) rather than on every render.
@@ -599,7 +682,7 @@ export function StoreView({ id }: { id: string }) {
                 const isEditing = editingPriceId === album.id;
                 // The seller's real Taobao/Weidian listing, scraped from the
                 // description — this is what turns a tile into a buyable product.
-                const market = pickMarketplaceLinks(albumLinks[album.id] ?? []);
+                const market = marketByAlbum[album.id] ?? EMPTY_MARKET;
                 return (
                   <div
                     key={album.id}
