@@ -7,7 +7,7 @@ import { FALLBACK_RATES, convertCny, formatCnyWith, formatMoney } from "./curren
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useUser, useSession, useClerk } from "@clerk/nextjs";
 import { DEFAULT_AGENT_ID } from "./agents";
-import { withRef } from "./links";
+import { productKeyOfUrl, withRef } from "./links";
 import { createClerkSupabaseClient, resolveSupabaseConfig, type SupabaseConfig } from "./supabase";
 import { makeShareSlug } from "./shareHaul";
 import { STORES, DEFAULT_LIBRARY_IDS } from "@/data/stores";
@@ -194,6 +194,24 @@ export function shareableStores(items: SavedItem[]): { id: string; name: string 
 export interface ItemLocations {
   inCart: boolean;
   haulNames: string[];
+  /**
+   * *Other* stores you've already saved this same marketplace product from.
+   * Two Yupoo sellers fronting one Taobao item are different album ids, so the
+   * id checks above can't see it — this can.
+   *
+   * Same-store matches are deliberately not counted: one listing legitimately
+   * backs several albums in a store, because colourways are a variant picked at
+   * checkout ("Tracksuit red" and "Tracksuit navy" share a Taobao id). Wanting
+   * both is normal; paying two different middlemen for one item is the mistake.
+   */
+  sameProductStores: string[];
+}
+
+function listWords(names: string[], quote = true): string {
+  const parts = quote ? names.map((n) => `“${n}”`) : names;
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 /**
@@ -202,17 +220,16 @@ export interface ItemLocations {
  * toast). Computed from the item's locations *before* the add.
  */
 export function duplicateNotice(loc: ItemLocations): string | null {
-  const quoted = loc.haulNames.map((n) => `“${n}”`);
-  const haulList =
-    quoted.length === 0
-      ? ""
-      : quoted.length === 1
-        ? quoted[0]
-        : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
+  const haulList = listWords(loc.haulNames);
   const haulWord = loc.haulNames.length > 1 ? "hauls" : "haul";
   if (loc.inCart && haulList) return `Already in your cart and ${haulWord} ${haulList} — quantity bumped`;
   if (loc.inCart) return "Already in your cart — quantity bumped";
   if (haulList) return `Heads up — this is already in ${haulWord} ${haulList}`;
+  // Not the same listing, but the same actual product from another seller —
+  // the one duplicate that costs real money, since you'd be buying it twice.
+  if (loc.sameProductStores.length > 0) {
+    return `Heads up — this is the same item you already saved from ${listWords(loc.sameProductStores, false)}`;
+  }
   return null;
 }
 
@@ -484,8 +501,12 @@ interface Store {
   cartOpen: boolean;
   setCartOpen: (open: boolean) => void;
   inCart: (id: string) => boolean;
-  /** Where an item id already lives (cart + hauls) — powers duplicate-add warnings. */
-  itemLocations: (id: string) => ItemLocations;
+  /**
+   * Where an item already lives (cart + hauls) — powers duplicate-add warnings.
+   * Pass the candidate's marketplace `url` and `storeId` to also catch the same
+   * product already saved from a *different* store.
+   */
+  itemLocations: (id: string, product?: { url?: string | null; storeId?: string }) => ItemLocations;
   addToCart: (item: Omit<SavedItem, "qty">, qty?: number) => void;
   setCartQty: (id: string, qty: number) => void;
   /** Returns an undo that puts the line back where it was. */
@@ -1524,10 +1545,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cartOpen,
       setCartOpen,
       inCart: (id) => cart.some((l) => l.id === id),
-      itemLocations: (id) => ({
-        inCart: cart.some((l) => l.id === id),
-        haulNames: hauls.filter((h) => h.items.some((i) => i.id === id)).map((h) => h.name),
-      }),
+      itemLocations: (id, product) => {
+        const key = productKeyOfUrl(product?.url);
+        // Same product, different seller. Lines with this exact id are skipped
+        // (the cart/haul checks above report those more precisely), as is
+        // anything from the same store — see ItemLocations.sameProductStores.
+        const sameProductStores = key
+          ? [
+              ...new Set(
+                [...cart, ...hauls.flatMap((h) => h.items)]
+                  .filter(
+                    (i) =>
+                      i.id !== id &&
+                      i.storeId !== product?.storeId &&
+                      productKeyOfUrl(i.url) === key,
+                  )
+                  .map((i) => i.storeName)
+                  .filter(Boolean),
+              ),
+            ]
+          : [];
+        return {
+          inCart: cart.some((l) => l.id === id),
+          haulNames: hauls.filter((h) => h.items.some((i) => i.id === id)).map((h) => h.name),
+          sameProductStores,
+        };
+      },
       addToCart,
       setCartQty,
       removeFromCart,

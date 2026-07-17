@@ -193,7 +193,9 @@ export function ItemDetail({ id }: { id: string }) {
                 onClick={() => {
                   if (carted) removeFromCart(`cat:${item.id}`);
                   else {
-                    const notice = duplicateNotice(itemLocations(`cat:${item.id}`));
+                    const notice = duplicateNotice(
+                      itemLocations(`cat:${item.id}`, { url: itemLink(item).rawUrl, storeId: item.storeId }),
+                    );
                     addToCart(catalogToSaved(item));
                     toast(notice ?? "Added to cart", notice ? "info" : "success");
                   }

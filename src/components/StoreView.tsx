@@ -13,8 +13,9 @@ import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { albumItemId, commitAlbumPrice, fetchAlbumDescription, type AlbumScrapeCache } from "@/lib/albumPrice";
-import { pickMarketplaceLinks } from "@/lib/links";
+import { pickMarketplaceLinks, productKey } from "@/lib/links";
 import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
+import { recordSightings, sightingCounts, type ProductSighting } from "@/lib/productIndex";
 import { lastPriceChanges } from "@/lib/priceHistory";
 import { PriceDropBadge } from "./PriceDropBadge";
 import { StoreAvatar } from "./StoreAvatar";
@@ -368,17 +369,46 @@ export function StoreView({ id }: { id: string }) {
     };
   }, [yupooHost, albums]);
 
-  // Anything already in the cart or a haul that predates link scraping (or was
-  // quick-added before this store's descriptions loaded) gets its real product
-  // link filled in as the grid learns it.
+  // As the grid learns each album's product link: fill in that link on any
+  // saved line still missing one, and log the listing to the cross-store index
+  // so this store can be compared against every other seller of the same item.
   useEffect(() => {
-    if (!yupooHost) return;
+    if (!yupooHost || !store) return;
+    const sightings: { key: string; sighting: ProductSighting }[] = [];
+    for (const [albumId, raw] of Object.entries(albumLinks)) {
+      const album = albums.find((a) => a.id === albumId);
+      const best = pickMarketplaceLinks(raw).best;
+      if (!best || !album?.yupooId) continue;
+      backfillItemUrl(albumItemId(yupooHost, album.yupooId), best.rawUrl);
+      sightings.push({
+        key: productKey(best),
+        sighting: {
+          storeId: store.id,
+          storeName: store.name,
+          host: yupooHost,
+          yupooId: album.yupooId,
+          title: album.name,
+          priceCny: albumPrices[albumId]?.value ?? null,
+          at: Date.now(),
+        },
+      });
+    }
+    recordSightings(sightings);
+  }, [albumLinks, albumPrices, albums, yupooHost, store, backfillItemUrl]);
+
+  // How many stores sell each album's product — recomputed once per link batch
+  // rather than per tile, since the index is a single parsed blob.
+  const sellerCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    const keyByAlbum: Record<string, string> = {};
     for (const [albumId, raw] of Object.entries(albumLinks)) {
       const best = pickMarketplaceLinks(raw).best;
-      const yupooId = albums.find((a) => a.id === albumId)?.yupooId;
-      if (best && yupooId) backfillItemUrl(albumItemId(yupooHost, yupooId), best.rawUrl);
+      if (best) keyByAlbum[albumId] = productKey(best);
     }
-  }, [albumLinks, albums, yupooHost, backfillItemUrl]);
+    const counts = sightingCounts(Object.values(keyByAlbum));
+    for (const [albumId, key] of Object.entries(keyByAlbum)) out[albumId] = counts[key] ?? 0;
+    return out;
+  }, [albumLinks]);
 
   // Price moves for the albums on screen, recomputed when a prefetch lands
   // (that's what writes the history) rather than on every render.
@@ -647,7 +677,16 @@ export function StoreView({ id }: { id: string }) {
                         {/* A move only shows on the scraped price — a manual override is the shopper's own number. */}
                         {override === undefined && <PriceDropBadge change={priceMoves[album.id] ?? null} className="mt-1.5" />}
                         {market.all.length > 0 && (
-                          <p className="mt-1.5 flex flex-wrap gap-1">
+                          <p className="mt-1.5 flex flex-wrap items-center gap-1">
+                            {/* >1 store means the same product is fronted elsewhere too — open it to compare. */}
+                            {(sellerCounts[album.id] ?? 0) > 1 && (
+                              <span
+                                title={`This exact item is listed by ${sellerCounts[album.id]} stores you've browsed — open it to compare prices`}
+                                className="border border-neon-400/40 bg-neon-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-neon-300"
+                              >
+                                {sellerCounts[album.id]} sellers
+                              </span>
+                            )}
                             {market.all.map((l) => (
                               <span
                                 key={l.marketplace}
@@ -707,7 +746,12 @@ export function StoreView({ id }: { id: string }) {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const notice = duplicateNotice(itemLocations(`album:${yupooHost}:${album.yupooId}`));
+                              const notice = duplicateNotice(
+                                itemLocations(`album:${yupooHost}:${album.yupooId}`, {
+                                  url: market.best?.rawUrl,
+                                  storeId: store!.id,
+                                }),
+                              );
                               addToCart({
                                 id: `album:${yupooHost}:${album.yupooId}`,
                                 title: album.name,

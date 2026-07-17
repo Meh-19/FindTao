@@ -181,6 +181,22 @@ export function parseLink(input: string, depth = 0): ParsedLink | null {
 }
 
 /**
+ * The identity of a *product*, independent of which Yupoo store you found it
+ * through: two sellers listing the same Taobao item are selling one thing, at
+ * two markups. This is the key the whole cross-store view hangs off.
+ */
+export function productKey(link: ParsedLink): string {
+  return `${link.marketplace}:${link.itemId}`;
+}
+
+/** productKey for a saved item's url, or null when it has no parseable marketplace link. */
+export function productKeyOfUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const parsed = parseLink(url);
+  return parsed ? productKey(parsed) : null;
+}
+
+/**
  * Order to default to when a seller lists the same piece on several platforms.
  * Taobao leads on breadth of agent support; the album viewer lets the shopper
  * switch, so this only decides what's pre-selected.

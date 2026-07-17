@@ -87,7 +87,9 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
         onClick={() => {
           if (carted) removeFromCart(`cat:${item.id}`);
           else {
-            const notice = duplicateNotice(itemLocations(`cat:${item.id}`));
+            const notice = duplicateNotice(
+              itemLocations(`cat:${item.id}`, { url: itemLink(item).rawUrl, storeId: item.storeId }),
+            );
             addToCart(catalogToSaved(item));
             toast(notice ?? "Added to cart", notice ? "info" : "success");
           }

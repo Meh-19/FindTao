@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { canonicalUrl, isShortLink, parseLink, pickMarketplaceLinks, toAgentUrl } from "./links";
+import { canonicalUrl, isShortLink, parseLink, pickMarketplaceLinks, productKey, productKeyOfUrl, toAgentUrl } from "./links";
 import { AGENTS, getAgent } from "./agents";
+
+describe("productKey", () => {
+  it("identifies the same item across differently-shaped urls", () => {
+    // The seller's tracking-laden link and a clean one are one product.
+    const a = productKeyOfUrl("https://item.taobao.com/item.htm?ft=t&id=1041917371194&spm=x");
+    const b = productKeyOfUrl("https://item.taobao.com/item.htm?id=1041917371194");
+    expect(a).toBe("taobao:1041917371194");
+    expect(a).toBe(b);
+  });
+
+  it("sees through an agent link to the product underneath", () => {
+    expect(productKeyOfUrl("https://www.cssbuy.com/item-1041917371194.html")).toBe("taobao:1041917371194");
+  });
+
+  it("keeps the same id on different marketplaces apart", () => {
+    expect(productKey({ marketplace: "taobao", itemId: "123", rawUrl: "" })).not.toBe(
+      productKey({ marketplace: "weidian", itemId: "123", rawUrl: "" }),
+    );
+  });
+
+  it("returns null for a yupoo album url or nothing at all", () => {
+    expect(productKeyOfUrl("https://firerep.x.yupoo.com/albums/232316449")).toBeNull();
+    expect(productKeyOfUrl(null)).toBeNull();
+    expect(productKeyOfUrl("")).toBeNull();
+  });
+});
 
 describe("pickMarketplaceLinks", () => {
   // The shapes below are real links scraped from live Yupoo album descriptions.

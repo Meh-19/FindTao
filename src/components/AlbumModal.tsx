@@ -14,6 +14,7 @@ import { useStore, duplicateNotice } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { formatMoney } from "@/lib/currency";
 import { AgentActions } from "./AgentActions";
+import { OtherSellers } from "./OtherSellers";
 import { StoreAvatar } from "./StoreAvatar";
 import { Lightbox } from "./Lightbox";
 
@@ -244,7 +245,12 @@ export function AlbumModal({
                 </div>
                 <button
                   onClick={() => {
-                    const notice = duplicateNotice(itemLocations(`album:${host}:${album.yupooId}`));
+                    const notice = duplicateNotice(
+                      itemLocations(`album:${host}:${album.yupooId}`, {
+                        url: marketplaceLink?.rawUrl,
+                        storeId: store.id,
+                      }),
+                    );
                     addToCart(
                       {
                         id: `album:${host}:${album.yupooId}`,
@@ -303,6 +309,15 @@ export function AlbumModal({
                   <Link2 size={16} aria-hidden="true" />
                 </Link>
               </div>
+            )}
+
+            {marketplaceLink && (
+              <OtherSellers
+                link={marketplaceLink}
+                storeId={store.id}
+                thisPriceCny={priceCny}
+                onNavigate={onClose}
+              />
             )}
 
             {/* Absence is worth stating: it's the difference between "buy this now"
