@@ -20,6 +20,8 @@ export interface YupooPhotosResponse {
   links?: string[];
   /** The seller's raw description text — the CNY price is almost always the first line. */
   description?: string | null;
+  /** The album's own title — lets a URL deep-link (which carries no title) still read a title-only price. */
+  title?: string | null;
 }
 
 /** What `/api/yupoo/album?light=1` returns: the description (for price) and its item links, no photo scan. */

@@ -63,18 +63,41 @@ function extractItemLinks(source: string): string[] {
  * the full page risks picking up unrelated links from nav/sidebar albums.
  */
 function extractDescription(html: string): string | null {
+  const gallery = extractImageGallery(html);
+  if (gallery && typeof gallery.description === "string") return gallery.description;
+  const meta = html.match(/<meta name="description" itemprop="description" content="([\s\S]*?)"\s*\/?>/);
+  return meta ? decodeEntities(meta[1]) : null;
+}
+
+/**
+ * The album's own title, from the same ImageGallery block (its `name`). A URL
+ * deep-link (`/store/x?album=123`) carries no title, so without this an album
+ * whose price lives *in its title* would read as "price not listed" until the
+ * shopper found it in the grid. Falls back to the `og:title` (`"¥369 | 相册 |
+ * host | …"` — take the part before the first separator).
+ */
+function extractTitle(html: string): string | null {
+  const gallery = extractImageGallery(html);
+  if (gallery && typeof gallery.name === "string" && gallery.name.trim()) return gallery.name.trim();
+  const og = html.match(/<meta property="og:title" content="([^"]*)"/);
+  if (og) {
+    const title = decodeEntities(og[1]).split("|")[0].trim();
+    if (title) return title;
+  }
+  return null;
+}
+
+/** Parse the page's ImageGallery JSON-LD block (name + description live here). */
+function extractImageGallery(html: string): { name?: string; description?: string } | null {
   for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
     try {
-      const data = JSON.parse(m[1]) as { "@type"?: string; description?: string };
-      if (data["@type"] === "ImageGallery" && typeof data.description === "string") {
-        return data.description;
-      }
+      const data = JSON.parse(m[1]) as { "@type"?: string; name?: string; description?: string };
+      if (data["@type"] === "ImageGallery") return data;
     } catch {
       // malformed block — keep looking at the rest
     }
   }
-  const meta = html.match(/<meta name="description" itemprop="description" content="([\s\S]*?)"\s*\/?>/);
-  return meta ? decodeEntities(meta[1]) : null;
+  return null;
 }
 
 /**
@@ -158,7 +181,7 @@ export async function GET(request: Request) {
     const photos = extractPhotos(html);
 
     return Response.json(
-      { photos, links, description },
+      { photos, links, description, title: extractTitle(html) },
       { headers: { "Cache-Control": "public, max-age=900" } },
     );
   } catch {

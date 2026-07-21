@@ -48,12 +48,17 @@ export function AlbumModal({
   // "￥270\n\n13oz canvas work pants..."). The API now scrapes that
   // description; until it lands, fall back to the title so something shows.
   const [description, setDescription] = useState<string | null>(null);
+  // The album's own title, fetched with the photos. A URL deep-link opens the
+  // modal with an empty `album.name`, so without this a title-only price (and
+  // the header) would stay blank until found in the grid.
+  const [fetchedTitle, setFetchedTitle] = useState<string | null>(null);
+  const name = album.name || fetchedTitle || "";
 
   // The price is usually the first line of the description, but sellers often
   // put it in the title instead — check both so a title-only price still shows.
   const parsedPrice = useMemo(
-    () => pickBestPrice(description, album.name),
-    [description, album.name],
+    () => pickBestPrice(description, name),
+    [description, name],
   );
   // A manual price set on the store tile (keyed by the album cart id) wins over the parsed one.
   const override = live ? priceOverrides[`album:${host}:${album.yupooId}`] : undefined;
@@ -70,6 +75,9 @@ export function AlbumModal({
       setPhotos(cached.photos ?? []);
       setItemLinks(cached.links ?? []);
       setDescription(cached.description ?? null);
+      setFetchedTitle(cached.title ?? null);
+    } else {
+      setFetchedTitle(null); // clear any prior album's title until the fetch lands
     }
 
     fetch(`/api/yupoo/album?host=${encodeURIComponent(host!)}&id=${album.yupooId}`)
@@ -79,10 +87,11 @@ export function AlbumModal({
         setPhotos(data.photos ?? []);
         setItemLinks(data.links ?? []);
         setDescription(data.description ?? null);
+        setFetchedTitle(data.title ?? null);
         cacheSet<YupooPhotosResponse>(
           "album",
           cacheId,
-          { photos: data.photos ?? [], links: data.links ?? [], description: data.description ?? null },
+          { photos: data.photos ?? [], links: data.links ?? [], description: data.description ?? null, title: data.title ?? null },
           CACHE_TTL.photos,
         );
       })
@@ -140,7 +149,7 @@ export function AlbumModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`${album.name} album`}
+      aria-label={`${name} album`}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
@@ -155,7 +164,7 @@ export function AlbumModal({
           <div className="flex min-w-0 items-center gap-2.5">
             <StoreAvatar store={store} className="h-8 w-8 rounded-none text-[10px]" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-mist-100">{album.name}</p>
+              <p className="truncate text-sm font-semibold text-mist-100">{name}</p>
               <p className="text-[11px] text-mist-500">
                 {store.name} · {loading ? "loading…" : `${total} photos`}
               </p>
@@ -184,7 +193,7 @@ export function AlbumModal({
                 {photo && (
                   <img
                     src={proxiedImg(photo, host!)}
-                    alt={`${album.name} photo ${i + 1}`}
+                    alt={`${name} photo ${i + 1}`}
                     loading="lazy"
                     className="h-full w-full object-cover"
                   />
@@ -257,7 +266,7 @@ export function AlbumModal({
                     addToCart(
                       {
                         id: `album:${host}:${album.yupooId}`,
-                        title: album.name,
+                        title: name,
                         priceCny,
                         image: photos?.[0] ?? album.cover ?? null,
                         imgHost: host,
@@ -267,7 +276,7 @@ export function AlbumModal({
                       },
                       qty,
                     );
-                    toast(notice ?? `Added ${qty} × ${album.name.slice(0, 40)} to cart`, notice ? "info" : "success");
+                    toast(notice ?? `Added ${qty} × ${name.slice(0, 40)} to cart`, notice ? "info" : "success");
                     setQty(1);
                   }}
                   className="btn-glow flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-none px-4 py-2 text-sm font-semibold text-white"
@@ -348,12 +357,12 @@ export function AlbumModal({
           images={photos.map((p) => ({
             src: proxiedImg(p, host!),
             rawSrc: p,
-            alt: `${album.name} photo`,
+            alt: `${name} photo`,
           }))}
           index={viewer}
           onIndexChange={setViewer}
           onClose={() => setViewer(null)}
-          title={album.name}
+          title={name}
         />
       )}
     </div>
