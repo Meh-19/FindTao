@@ -3,12 +3,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { itemHref } from "@/lib/itemLink";
-import type { SavedItem } from "@/lib/store";
+import { useStore, type SavedItem } from "@/lib/store";
+import { albumPreviewTarget, useAlbumPreview } from "@/lib/albumPreview";
 
 /**
  * Wraps children in a link to the item's exact product page (see itemHref):
- * an in-app <Link> for album/catalog items, a new-tab <a> for outbound
- * marketplace urls, or a plain <span> when there's nothing to link to.
+ * an in-app <Link> for catalog items, a new-tab <a> for outbound marketplace
+ * urls, or a plain <span> when there's nothing to link to.
+ *
+ * Album items are special-cased: rather than navigate to the whole store page,
+ * clicking one opens it in the shared preview modal in place (from the cart,
+ * a haul, or anywhere else).
  */
 export function ItemLink({
   item,
@@ -17,13 +22,34 @@ export function ItemLink({
   onNavigate,
   children,
 }: {
-  item: Pick<SavedItem, "id" | "storeId" | "url">;
+  item: Pick<SavedItem, "id" | "storeId" | "url" | "title" | "image">;
   className?: string;
   title?: string;
-  /** Fired on click before navigation — e.g. to close the cart drawer. */
+  /** Fired on click before navigation/preview — e.g. to close the cart drawer. */
   onNavigate?: () => void;
   children: ReactNode;
 }) {
+  const preview = useAlbumPreview();
+  const { allStores } = useStore();
+  const previewTarget = preview
+    ? albumPreviewTarget(item, (id) => allStores.some((s) => s.id === id))
+    : null;
+  if (previewTarget && preview) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.();
+          preview.openPreview(previewTarget);
+        }}
+        className={className}
+        title={title}
+      >
+        {children}
+      </button>
+    );
+  }
+
   const link = itemHref(item);
   if (!link) {
     return (

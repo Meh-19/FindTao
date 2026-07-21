@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SignInButton, useClerk } from "@clerk/nextjs";
 import {
+  ChevronDown,
   Globe,
   Heart,
   Home,
@@ -30,17 +31,23 @@ import { useModalA11y } from "@/lib/useModalA11y";
 import { StoreAvatar } from "./StoreAvatar";
 import { SyncBadge } from "./Chrome";
 
-const LINKS = [
+// The everyday links, always visible. The rest live under a collapsible "More"
+// so the sidebar isn't a wall of 14 tabs that squeezes the store list down to a
+// few rows.
+const PRIMARY_LINKS = [
   { href: "/", label: "Home", Icon: Home },
   { href: "/browse", label: "Search", Icon: Search },
   { href: "/wishlist", label: "Wishlist", Icon: Heart },
   { href: "/drops", label: "New drops", Icon: Zap },
   { href: "/library", label: "Library", Icon: LibraryBig },
   { href: "/discover", label: "Discover", Icon: Globe },
+  { href: "/hauls", label: "Hauls", Icon: ShoppingBasket },
+];
+
+const MORE_LINKS = [
   { href: "/w2c", label: "W2C finder", Icon: ScanSearch },
   { href: "/advisor", label: "AI Advisor", Icon: Ruler },
   { href: "/convert", label: "Converter", Icon: Link2 },
-  { href: "/hauls", label: "Hauls", Icon: ShoppingBasket },
   { href: "/collection", label: "Collection", Icon: Shirt },
   { href: "/tracking", label: "Tracking", Icon: Package },
   { href: "/shipping", label: "Shipping", Icon: Plane },
@@ -112,35 +119,62 @@ function Logo() {
   );
 }
 
+type NavLink = { href: string; label: string; Icon: typeof Home };
+
+function NavItem({ href, label, Icon, active }: NavLink & { active: boolean }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`relative flex items-center gap-3 rounded-none px-3 py-2 text-sm font-medium transition-all duration-200 ${
+        active
+          ? "bg-gradient-to-r from-neon-600/30 to-flare-500/10 text-white"
+          : "text-mist-400 hover:bg-white/5 hover:text-mist-100"
+      }`}
+    >
+      {active && <span className="flow-bg absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-none" />}
+      <Icon size={16} aria-hidden="true" className={active ? "text-neon-300" : ""} />
+      {label}
+    </Link>
+  );
+}
+
 /** Nav links + hauls + store list — shared by the desktop sidebar and mobile drawer. */
 function SidebarContent() {
   const pathname = usePathname();
   const { hauls, prefs, hydrated, allStores, library, favStores, isAdmin } = useStore();
   const libraryStores = hydrated ? allStores.filter((s) => library.includes(s.id)) : [];
-  const links = isAdmin ? [...LINKS, { href: "/dev", label: "Dev", Icon: Wrench }] : LINKS;
+  const moreLinks: NavLink[] = isAdmin ? [...MORE_LINKS, { href: "/dev", label: "Dev", Icon: Wrench }] : MORE_LINKS;
+  // Auto-open the "More" group when the current page lives inside it, so the
+  // active tab is never hidden behind a collapsed section.
+  const moreActive = moreLinks.some((l) => l.href === pathname);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const showMore = moreOpen || moreActive;
 
   return (
     <>
       <nav className="flex flex-col gap-0.5 px-3">
-        {links.map(({ href, label, Icon }) => {
-          const active = pathname === href;
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              className={`relative flex items-center gap-3 rounded-none px-3 py-2 text-sm font-medium transition-all duration-200 ${
-                active
-                  ? "bg-gradient-to-r from-neon-600/30 to-flare-500/10 text-white"
-                  : "text-mist-400 hover:bg-white/5 hover:text-mist-100"
-              }`}
-            >
-              {active && <span className="flow-bg absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-none" />}
-              <Icon size={16} aria-hidden="true" className={active ? "text-neon-300" : ""} />
-              {label}
-            </Link>
-          );
-        })}
+        {PRIMARY_LINKS.map((link) => (
+          <NavItem key={link.href} {...link} active={pathname === link.href} />
+        ))}
+
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={showMore}
+          className="flex items-center gap-3 rounded-none px-3 py-2 text-sm font-medium text-mist-400 transition-colors hover:bg-white/5 hover:text-mist-100"
+        >
+          <ChevronDown
+            size={16}
+            aria-hidden="true"
+            className={`transition-transform duration-200 ${showMore ? "" : "-rotate-90"}`}
+          />
+          More
+        </button>
+        {showMore &&
+          moreLinks.map((link) => (
+            <NavItem key={link.href} {...link} active={pathname === link.href} />
+          ))}
       </nav>
 
       {hydrated && hauls.length > 0 && (

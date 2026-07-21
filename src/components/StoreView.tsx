@@ -13,6 +13,7 @@ import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { albumItemId, commitAlbumPrice, fetchAlbumDescription, type AlbumScrapeCache } from "@/lib/albumPrice";
+import { baselineStoreOnFollow } from "@/lib/albumIds";
 import { pickMarketplaceLinks, productKey, type MarketplaceLinks } from "@/lib/links";
 import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
 import { recordSightings, sightingCounts, type ProductSighting } from "@/lib/productIndex";
@@ -259,6 +260,12 @@ export function StoreView({ id }: { id: string }) {
   const [unseenNew, setUnseenNew] = useState<Set<string>>(new Set());
   const seenBaseline = useRef<Set<string> | null>(null); // frozen at first load, so live marking doesn't erase glow
   const processedNew = useRef<Set<string>>(new Set());
+  // A store with no prior seen-record has never been baselined — its first open
+  // silently records what's there (no glow) rather than lighting up every album.
+  const firstVisitRef = useRef(false);
+  // How many albums the first page held — "new" glow only applies to those.
+  // Load More pulls *older* albums, which must never read as new releases.
+  const initialCountRef = useRef(0);
   // Editing a tile's price inline (one at a time).
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [priceDraft, setPriceDraft] = useState("");
@@ -273,23 +280,36 @@ export function StoreView({ id }: { id: string }) {
     // Reset per-store when navigating between stores.
     seenBaseline.current = null;
     processedNew.current = new Set();
+    firstVisitRef.current = false;
+    initialCountRef.current = 0;
     setUnseenNew(new Set());
     setAlbumQuery("");
   }, [id]);
 
   useEffect(() => {
     if (!liveMode || albums.length === 0) return;
-    if (!seenBaseline.current) seenBaseline.current = new Set(storeSeen[id] ?? []);
-    const baseline = seenBaseline.current;
+    const firstRun = seenBaseline.current === null;
+    if (firstRun) {
+      const prior = storeSeen[id];
+      seenBaseline.current = new Set(prior ?? []);
+      // Never baselined (no record at all) → this open is the baseline; don't glow.
+      firstVisitRef.current = prior === undefined;
+      initialCountRef.current = albums.length;
+    }
+    const baseline = seenBaseline.current ?? new Set<string>();
     const currentIds: string[] = [];
     const fresh: string[] = [];
-    for (const a of albums) {
+    albums.forEach((a, idx) => {
       currentIds.push(a.id);
       if (!processedNew.current.has(a.id)) {
         processedNew.current.add(a.id);
-        if (!baseline.has(a.id)) fresh.push(a.id);
+        // Glow only genuinely-new albums on the first page of an already-seen
+        // store — not a first-ever visit, and not the older albums Load More adds.
+        if (!firstVisitRef.current && idx < initialCountRef.current && !baseline.has(a.id)) {
+          fresh.push(a.id);
+        }
       }
-    }
+    });
     if (fresh.length) setUnseenNew((prev) => new Set([...prev, ...fresh]));
     markStoreSeen(id, currentIds); // mark all current as seen so the Library badge clears
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -588,7 +608,7 @@ export function StoreView({ id }: { id: string }) {
           </button>
         ) : (
           <button
-            onClick={() => { addToLibrary(store.id); toast(`${store.name} added to library`); }}
+            onClick={() => { addToLibrary(store.id); baselineStoreOnFollow(store, markStoreSeen); toast(`${store.name} added to library`); }}
             className="btn-glow flex w-full items-center justify-center gap-1.5 rounded-none px-4 py-2 text-sm font-semibold text-white sm:w-auto"
           >
             <Plus size={14} aria-hidden="true" /> Add to library

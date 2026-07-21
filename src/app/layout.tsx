@@ -9,6 +9,7 @@ const display = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", "700"
 const sans = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-inter" });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains-mono" });
 import { StoreProvider } from "@/lib/store";
+import { AlbumPreviewProvider } from "@/lib/albumPreview";
 import { Nav } from "@/components/Nav";
 import { CartPanel } from "@/components/CartPanel";
 import { Onboarding } from "@/components/Onboarding";
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="flow-bg fixed inset-x-0 top-0 z-50 h-0.5" />
         <ClerkProvider appearance={{ theme: dark }}>
           <StoreProvider>
+          <AlbumPreviewProvider>
           <div className="min-h-screen md:flex">
             <Nav />
             <div className="min-w-0 flex-1 pb-14 md:pb-8">
@@ -75,6 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Toasts />
           <StatusBar />
           <BottomNav />
+          </AlbumPreviewProvider>
           </StoreProvider>
         </ClerkProvider>
       </body>

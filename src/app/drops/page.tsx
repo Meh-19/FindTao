@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Images, Loader2, Zap } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useAlbumPreview } from "@/lib/albumPreview";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { libraryYupooStores, localAlbumId, type YupooStoreRef } from "@/lib/yupooStores";
@@ -237,15 +238,56 @@ function DropCard({
   store: YupooStoreRef;
   fmtConverted: (cny: number) => string;
 }) {
+  const preview = useAlbumPreview();
   // Only show a price we already have — the feed must not fire a scrape per album.
   const cached = cacheGet<{ p: ParsedPrice | null }>("price", `${store.host}:${album.id}`);
   const price = (cached ? cached.p : parsePriceCnyDetailed(album.title))?.value ?? null;
 
+  // Open the album in place rather than navigating to the store. Fall back to the
+  // store deep-link if the preview provider somehow isn't mounted.
+  if (!preview) {
+    return (
+      <Link
+        href={`/store/${store.id}?album=${album.id}`}
+        className="group overflow-hidden border border-neon-400/40 bg-ink-800/80 transition-colors hover:border-white"
+      >
+        <DropCardBody album={album} store={store} price={price} fmtConverted={fmtConverted} />
+      </Link>
+    );
+  }
+
   return (
-    <Link
-      href={`/store/${store.id}?album=${album.id}`}
-      className="group overflow-hidden border border-neon-400/40 bg-ink-800/80 transition-colors hover:border-white"
+    <button
+      type="button"
+      onClick={() =>
+        preview.openPreview({
+          storeId: store.id,
+          yupooId: album.id,
+          name: album.title,
+          cover: album.cover,
+          photoCount: album.count,
+        })
+      }
+      className="group overflow-hidden border border-neon-400/40 bg-ink-800/80 text-left transition-colors hover:border-white"
     >
+      <DropCardBody album={album} store={store} price={price} fmtConverted={fmtConverted} />
+    </button>
+  );
+}
+
+function DropCardBody({
+  album,
+  store,
+  price,
+  fmtConverted,
+}: {
+  album: YupooAlbum;
+  store: YupooStoreRef;
+  price: number | null;
+  fmtConverted: (cny: number) => string;
+}) {
+  return (
+    <>
       <div className="flex aspect-square items-center justify-center overflow-hidden bg-ink-700">
         {album.cover ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -269,6 +311,6 @@ function DropCard({
           <p className="mt-1 text-[11px] text-mist-500">{album.count} photos</p>
         )}
       </div>
-    </Link>
+    </>
   );
 }

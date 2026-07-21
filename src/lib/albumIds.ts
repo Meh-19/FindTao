@@ -5,6 +5,9 @@
  * stampeding the scraping proxy.
  */
 
+import type { StoreInfo } from "@/data/stores";
+import { localAlbumId, yupooHostOf } from "./yupooStores";
+
 interface CacheEntry {
   ids: string[];
   ts: number;
@@ -29,6 +32,22 @@ function release() {
   const next = queue.shift();
   if (next) next();
   else active--;
+}
+
+/**
+ * When the shopper follows a store, treat everything currently posted as
+ * already-seen so only *future* drops surface as "new". Without this, a
+ * freshly-followed store has no seen-record and its whole catalog reads as a
+ * pile of new drops. No-op for non-Yupoo stores (they have no album feed).
+ */
+export async function baselineStoreOnFollow(
+  store: StoreInfo,
+  markStoreSeen: (storeId: string, ids: string[]) => void,
+): Promise<void> {
+  const host = yupooHostOf(store.url);
+  if (!host) return;
+  const ids = await fetchAlbumIds(host);
+  if (ids.length) markStoreSeen(store.id, ids.map(localAlbumId));
 }
 
 export async function fetchAlbumIds(host: string): Promise<string[]> {

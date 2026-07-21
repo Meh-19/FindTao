@@ -7,12 +7,13 @@ import type { StoreInfo } from "@/data/stores";
 import { storeItems } from "@/data/catalog";
 import { storeAlbums } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
-import { fetchAlbumIds } from "@/lib/albumIds";
+import { fetchAlbumIds, baselineStoreOnFollow } from "@/lib/albumIds";
+import { localAlbumId } from "@/lib/yupooStores";
 import { StoreAvatar } from "@/components/StoreAvatar";
 import { useStore } from "@/lib/store";
 
 export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: number }) {
-  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, toastUndo, hydrated, tagDefs, catalogItems, storeSeen } = useStore();
+  const { inLibrary, addToLibrary, removeFromLibrary, favStores, toggleFavStore, toast, toastUndo, hydrated, tagDefs, catalogItems, storeSeen, markStoreSeen } = useStore();
   const storeTagDefs = tagDefs.filter((t) => t.kind === "store" && store.tags?.includes(t.name));
   const saved = hydrated && inLibrary(store.id);
   const fav = hydrated && favStores.includes(store.id);
@@ -49,8 +50,15 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
   }, [hydrated, yupooHost]);
   const newCount = useMemo(() => {
     if (!currentIds) return 0;
-    const seen = new Set(storeSeen[store.id] ?? []);
-    return currentIds.filter((id) => !seen.has(id)).length;
+    // No seen-record means the store was never baselined (following it records
+    // what's there now) — until then we can't tell new from old, so claim nothing.
+    const seenList = storeSeen[store.id];
+    if (!seenList) return 0;
+    // storeSeen keys albums by their local `yupoo-<id>` form; normalise the raw
+    // scraped ids to match, or every album reads as unseen. (This mismatch was
+    // the bug that made freshly-followed stores show their whole catalog as new.)
+    const seen = new Set(seenList);
+    return currentIds.filter((id) => !seen.has(localAlbumId(id))).length;
   }, [currentIds, storeSeen, store.id]);
 
   return (
@@ -110,7 +118,7 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
               href={`/store/${store.id}`}
               className="rounded-none border border-neon-400/60 bg-neon-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neon-200 shadow-[0_0_8px_rgba(139,92,246,0.5)] transition-colors hover:bg-neon-500/30"
             >
-              +{newCount} New!
+              +{newCount >= 120 ? "120+" : newCount} New!
             </Link>
           )}
         </span>
@@ -130,7 +138,7 @@ export function StoreCard({ store, index = 0 }: { store: StoreInfo; index?: numb
             </button>
           ) : (
             <button
-              onClick={() => { addToLibrary(store.id); toast(`${store.name} added to library`); }}
+              onClick={() => { addToLibrary(store.id); baselineStoreOnFollow(store, markStoreSeen); toast(`${store.name} added to library`); }}
               className="flex items-center gap-1 rounded-none border border-ink-500 px-3 py-1.5 font-medium text-mist-300 transition-colors hover:border-neon-500/60 hover:text-neon-300"
             >
               <Plus size={12} aria-hidden="true" /> Library
