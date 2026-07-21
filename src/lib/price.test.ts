@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePriceCny, parsePriceCnyDetailed } from "./price";
+import { parsePriceCny, parsePriceCnyDetailed, pickBestPrice } from "./price";
 
 describe("parsePriceCnyDetailed — explicit currency markers", () => {
   it.each([
@@ -60,6 +60,33 @@ describe("parsePriceCnyDetailed — false-positive guards (regression: 100% cott
 
   it("still finds a real bare price sitting next to excluded terms elsewhere in the string", () => {
     expect(parsePriceCnyDetailed("220gsm 100% cotton tee, 180 shipped")).toEqual({ value: 180, estimate: true });
+  });
+});
+
+describe("pickBestPrice — across description + title", () => {
+  it("falls back to the title when the description has no price", () => {
+    // The real bug: description present but priceless meant the title price was ignored.
+    expect(pickBestPrice("13oz canvas work pants, model wears M", "Fyredwrld jeans ¥268")).toEqual({
+      value: 268,
+      estimate: false,
+    });
+  });
+
+  it("prefers the description price when it has one", () => {
+    expect(pickBestPrice("￥270 heavyweight tee", "cool tee ¥999")).toEqual({ value: 270, estimate: false });
+  });
+
+  it("prefers a marked title price over a bare-number estimate in the description", () => {
+    // "model is 180 tall" would parse as an estimate; a marked title price should win.
+    expect(pickBestPrice("model is 180 tall", "denim jacket ¥320")).toEqual({ value: 320, estimate: false });
+  });
+
+  it("uses an estimate only when no source has a marked price", () => {
+    expect(pickBestPrice("loose fit 180", "washed tee")).toEqual({ value: 180, estimate: true });
+  });
+
+  it("skips empty/null sources and returns null when nothing parses", () => {
+    expect(pickBestPrice(null, "", "just a plain name")).toBeNull();
   });
 });
 

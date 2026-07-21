@@ -50,6 +50,20 @@ export function parsePriceCnyDetailed(text: string): ParsedPrice | null {
   return null;
 }
 
+/**
+ * Best price across several candidate texts (e.g. an album's description and
+ * its title). Sellers put the price in either place — often the title when the
+ * description is just links — so scanning only one loses it. A currency-marked
+ * price beats a bare-number estimate regardless of which text it came from;
+ * among equals, earlier candidates win. Pass sources most-authoritative first.
+ */
+export function pickBestPrice(...texts: (string | null | undefined)[]): ParsedPrice | null {
+  const parsed = texts
+    .map((t) => (t ? parsePriceCnyDetailed(t) : null))
+    .filter((p): p is ParsedPrice => p !== null);
+  return parsed.find((p) => !p.estimate) ?? parsed[0] ?? null;
+}
+
 /** Back-compat helper for callers that only need the numeric value. */
 export function parsePriceCny(text: string): number | null {
   return parsePriceCnyDetailed(text)?.value ?? null;

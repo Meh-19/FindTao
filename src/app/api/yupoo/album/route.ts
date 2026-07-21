@@ -78,6 +78,36 @@ function extractDescription(html: string): string | null {
 }
 
 /**
+ * Every Yupoo photo is published at several sizes under one hash —
+ * `photo.yupoo.com/<user>/<hash>/big.jpg`, `/square.jpg`, `/small.jpg`,
+ * `/medium.jpg` — and the album markup carries more than one of them in
+ * `data-src`. Deduping by exact URL (as we used to) let both the full image and
+ * its thumbnail through, so the viewer showed every photo twice — once sharp,
+ * once low-res. Group by hash instead and keep the highest-quality variant,
+ * preserving first-seen order.
+ */
+const VARIANT_RANK: Record<string, number> = { big: 4, medium: 3, small: 2, square: 1 };
+
+function extractPhotos(html: string): string[] {
+  const byHash = new Map<string, { url: string; rank: number; order: number }>();
+  let order = 0;
+  for (const m of html.matchAll(/data-src="((?:https?:)?\/\/photo\.yupoo\.com[^"]+)"/g)) {
+    const url = m[1].startsWith("//") ? `https:${m[1]}` : m[1];
+    const parts = url.match(/photo\.yupoo\.com\/[^/]+\/([^/]+)\/([a-z]+)\.(?:jpe?g|png|webp)/i);
+    const hash = parts ? parts[1] : url; // fall back to the whole url if the shape is unexpected
+    const rank = parts ? (VARIANT_RANK[parts[2].toLowerCase()] ?? 3) : 3;
+    const existing = byHash.get(hash);
+    if (!existing) {
+      byHash.set(hash, { url, rank, order: order++ });
+    } else if (rank > existing.rank) {
+      existing.url = url;
+      existing.rank = rank; // upgrade to the sharper variant, keep its slot
+    }
+  }
+  return [...byHash.values()].sort((a, b) => a.order - b.order).map((v) => v.url);
+}
+
+/**
  * Scrape one Yupoo album: the photo list, the seller's description (price +
  * marketplace links live here — see extractDescription above), and any
  * Taobao/Tmall/Weidian/1688 item links found in it. Those power the price
@@ -125,15 +155,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const photos: string[] = [];
-    const seen = new Set<string>();
-    for (const m of html.matchAll(/data-src="((?:https?:)?\/\/photo\.yupoo\.com[^"]+)"/g)) {
-      const url = m[1].startsWith("//") ? `https:${m[1]}` : m[1];
-      if (!seen.has(url)) {
-        seen.add(url);
-        photos.push(url);
-      }
-    }
+    const photos = extractPhotos(html);
 
     return Response.json(
       { photos, links, description },

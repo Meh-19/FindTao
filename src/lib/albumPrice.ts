@@ -6,7 +6,7 @@
  * so `&light=1` pulls just that without the photo scan.
  */
 
-import { parsePriceCnyDetailed, type ParsedPrice } from "./price";
+import { pickBestPrice, type ParsedPrice } from "./price";
 import { cacheSet, CACHE_TTL } from "./clientCache";
 import { recordPrice } from "./priceHistory";
 import type { YupooAlbumLightResponse } from "./yupoo";
@@ -84,7 +84,9 @@ export async function fetchAlbumPriceFresh(
   }
   // A rate-limited miss is "unknown", not "no price" — don't let it poison the history.
   if (result.rateLimited) return null;
-  const price = parsePriceCnyDetailed(result.description ?? fallbackText);
+  // Description first, then the album title (passed as fallbackText) — the price
+  // may be in either, so scanning only one would drop title-only prices.
+  const price = pickBestPrice(result.description, fallbackText);
   commitAlbumPrice(host, yupooId, price, result.links);
   return price;
 }

@@ -7,7 +7,7 @@ import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
 import { pickMarketplaceLinks, type Marketplace } from "@/lib/links";
 import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
-import { parsePriceCnyDetailed } from "@/lib/price";
+import { pickBestPrice } from "@/lib/price";
 import { proxiedImg, type YupooPhotosResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
 import { useStore, duplicateNotice } from "@/lib/store";
@@ -49,8 +49,10 @@ export function AlbumModal({
   // description; until it lands, fall back to the title so something shows.
   const [description, setDescription] = useState<string | null>(null);
 
+  // The price is usually the first line of the description, but sellers often
+  // put it in the title instead — check both so a title-only price still shows.
   const parsedPrice = useMemo(
-    () => parsePriceCnyDetailed(description ?? album.name),
+    () => pickBestPrice(description, album.name),
     [description, album.name],
   );
   // A manual price set on the store tile (keyed by the album cart id) wins over the parsed one.

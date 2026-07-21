@@ -8,7 +8,7 @@ import { storeItems } from "@/data/catalog";
 import type { StoreInfo } from "@/data/stores";
 import { storeAlbums, type Album } from "@/data/albums";
 import { detectStorePlatform } from "@/lib/platform";
-import { parsePriceCnyDetailed, type ParsedPrice } from "@/lib/price";
+import { parsePriceCnyDetailed, pickBestPrice, type ParsedPrice } from "@/lib/price";
 import { formatMoney } from "@/lib/currency";
 import { proxiedImg, type YupooAlbum, type YupooAlbumsResponse } from "@/lib/yupoo";
 import { cacheGet, cacheSet, CACHE_TTL } from "@/lib/clientCache";
@@ -428,7 +428,9 @@ export function StoreView({ id }: { id: string }) {
         }
         if (cancelled) return;
         const description = result.rateLimited ? null : result.description;
-        const parsed = parsePriceCnyDetailed(description ?? album.name);
+        // Price can live in the description or the title — prefer the description,
+        // but fall back to the title so a title-only price isn't lost.
+        const parsed = pickBestPrice(description, album.name);
         // Cache (and log to price history) only a real lookup — a rate-limited
         // miss should retry next time, and must never land in the history.
         if (!result.rateLimited) commitAlbumPrice(yupooHost!, album.yupooId, parsed, result.links);
