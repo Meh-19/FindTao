@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Camera, Loader2, ShieldCheck } from "lucide-react";
+import posthog from "posthog-js";
 import { useStore } from "@/lib/store";
 import { useModalA11y } from "@/lib/useModalA11y";
 
@@ -80,6 +81,7 @@ export function Onboarding() {
       }
       await markDone();
       await user!.reload();
+      posthog.capture("onboarding_completed", { profile_image_updated: Boolean(file) });
       toast(`You're all set, ${name}!`);
       setOpen(false);
     } catch {
@@ -95,6 +97,7 @@ export function Onboarding() {
     try {
       await markDone();
       await user!.reload();
+      posthog.capture("onboarding_skipped");
     } catch {
       /* non-fatal — it'll just prompt again next session */
     }

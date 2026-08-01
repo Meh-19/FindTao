@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Check, Heart, Plus } from "lucide-react";
+import posthog from "posthog-js";
 import type { CatalogItem } from "@/data/catalog";
 import { itemStore, itemLink } from "@/data/catalog";
 import { MARKETPLACE_LABEL } from "@/lib/marketplaceLabel";
@@ -91,6 +92,11 @@ export function ItemCard({ item, index = 0 }: { item: CatalogItem; index?: numbe
               itemLocations(`cat:${item.id}`, { url: itemLink(item).rawUrl, storeId: item.storeId }),
             );
             addToCart(catalogToSaved(item));
+            posthog.capture("cart_item_added", {
+              item_source: "catalog",
+              marketplace: item.marketplace,
+              has_qc: item.qcCount > 0,
+            });
             toast(notice ?? "Added to cart", notice ? "info" : "success");
           }
         }}

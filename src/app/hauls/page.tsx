@@ -7,6 +7,7 @@ import {
   ChevronDown, ExternalLink, Globe, ImageOff, Lock, Pencil, Plus, Ruler, Share2, X,
 } from "lucide-react";
 import { SignInButton } from "@clerk/nextjs";
+import posthog from "posthog-js";
 import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
 import { AdviceDetail } from "@/components/AdviceDetail";
 import { CopyButton } from "@/components/CopyButton";
@@ -389,6 +390,7 @@ function HaulsView() {
     const trimmed = newName.trim();
     if (!trimmed) return;
     createHaul(trimmed);
+    posthog.capture("haul_created");
     setNewName("");
     toast(`${trimmed} created and set active`);
   }

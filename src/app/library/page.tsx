@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Star } from "lucide-react";
+import posthog from "posthog-js";
 import { StoreCard } from "@/components/StoreCard";
 import { useStore } from "@/lib/store";
 import { parseLink } from "@/lib/links";
@@ -54,6 +55,7 @@ export default function LibraryPage() {
       community: true,
     };
     submitStore(store);
+    posthog.capture("store_added", { platform: info.platform, has_custom_name: Boolean(name.trim()) });
     setUrl("");
     setName("");
     toast(

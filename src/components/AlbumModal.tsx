@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Link2, Minus, Plus, ShoppingCart, X } from "lucide-react";
+import posthog from "posthog-js";
 import type { Album } from "@/data/albums";
 import type { StoreInfo } from "@/data/stores";
 import { pickMarketplaceLinks, type Marketplace } from "@/lib/links";
@@ -276,6 +277,12 @@ export function AlbumModal({
                       },
                       qty,
                     );
+                    posthog.capture("cart_item_added", {
+                      item_source: "album",
+                      quantity: qty,
+                      has_listed_price: priceCny !== null,
+                      has_marketplace_link: Boolean(marketplaceLink),
+                    });
                     toast(notice ?? `Added ${qty} × ${name.slice(0, 40)} to cart`, notice ? "info" : "success");
                     setQty(1);
                   }}
