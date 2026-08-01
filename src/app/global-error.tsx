@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import "./globals.css";
-import { captureError } from "@/components/Analytics";
+import posthog from "posthog-js";
 
 /**
  * Root-level error boundary — only fires when the error happens in the root
@@ -20,7 +20,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
-    captureError(error);
+    posthog.captureException(error);
   }, [error]);
 
   return (

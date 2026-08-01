@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ImageOff, Minus, Plus, X } from "lucide-react";
+import posthog from "posthog-js";
 import { proxiedImg } from "@/lib/yupoo";
 import { AdviceBadge, ManualSizeBadge } from "@/components/AdviceBadge";
 import { ItemLink } from "@/components/ItemLink";
@@ -74,6 +75,7 @@ export function CartPanel() {
   function assign() {
     const haul = hauls.find((h) => h.id === targetHaul);
     assignCartToHaul(targetHaul);
+    posthog.capture("cart_assigned_to_haul", { item_count: cartCount });
     setPrefs({ activeHaulId: targetHaul });
     toast(`Moved ${cartCount} item${cartCount === 1 ? "" : "s"} to ${haul?.name ?? "haul"}`);
     setCartOpen(false);

@@ -23,7 +23,7 @@ const turnstile = "https://challenges.cloudflare.com";
 const devEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${devEval} ${clerk} ${turnstile}`,
+  `script-src 'self' 'unsafe-inline'${devEval} ${clerk} ${turnstile} https://*.posthog.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, Bot, CheckCircle2, Layers, Loader2, Maximize2, Ruler, SkipForward, Sparkles, X } from "lucide-react";
+import posthog from "posthog-js";
 import { useStore, type SavedItem } from "@/lib/store";
 import { proxiedImg } from "@/lib/yupoo";
 import {
@@ -606,6 +607,7 @@ export function AiAdvisor() {
         setStage({ kind: "picking" });
         return;
       }
+      posthog.capture("advisor_chart_analyzed", { analysis_source: "ai" });
       setStage({ kind: "review", selection, chart: data as SizeChart });
     } catch {
       setAnalyzeError("Network error reading the chart — try again");
@@ -630,6 +632,7 @@ export function AiAdvisor() {
     const exists = cart.some((l) => l.id === itemId) || hauls.some((h) => h.items.some((i) => i.id === itemId));
     if (rec && exists) {
       setItemAdvice(itemId, adviceFrom(rec, chart, measurements));
+      posthog.capture("advisor_size_recommendation_saved", { save_destination: "existing_item" });
       setAutoSaved(true);
       toast(`Saved size ${rec.size} to your haul item`);
     } else {
@@ -799,6 +802,7 @@ export function AiAdvisor() {
             attachable={attachable}
             onAttach={(itemId) => {
               setItemAdvice(itemId, adviceFrom(recommendation, stage.chart, measurements));
+              posthog.capture("advisor_size_recommendation_saved", { save_destination: "selected_item" });
               setAutoSaved(true);
               toast(`Saved size ${recommendation.size} to your haul item`);
             }}

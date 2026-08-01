@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Images, Loader2, ScanSearch, Store, Upload, X } from "lucide-react";
+import posthog from "posthog-js";
 import { useStore } from "@/lib/store";
 import { itemStore } from "@/data/catalog";
 import type { CatalogItem } from "@/data/catalog";
@@ -82,6 +83,7 @@ export default function W2CPage() {
           return;
         }
         cacheSet<W2CIdentity>("w2c", key, data, IDENTITY_TTL);
+        posthog.capture("w2c_identification_completed", { cached: false });
         setStage({ kind: "done", identity: data, cached: false });
       } catch {
         setStage({ kind: "error", message: "Couldn't reach the finder — check your connection." });

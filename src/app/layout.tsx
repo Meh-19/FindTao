@@ -49,11 +49,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
-        <Suspense>
-          <Analytics />
-        </Suspense>
         <div className="flow-bg fixed inset-x-0 top-0 z-50 h-0.5" />
         <ClerkProvider appearance={{ theme: dark }}>
+          <Suspense>
+            <Analytics />
+          </Suspense>
           <StoreProvider>
           <AlbumPreviewProvider>
           <div className="min-h-screen md:flex">
