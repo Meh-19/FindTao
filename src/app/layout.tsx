@@ -24,7 +24,10 @@ const DESCRIPTION =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "FindTao — find it, QC it, hand it to your agent",
+  title: {
+    default: "FindTao — find it, QC it, hand it to your agent",
+    template: "%s · FindTao",
+  },
   description: DESCRIPTION,
   openGraph: {
     title: "FindTao",
