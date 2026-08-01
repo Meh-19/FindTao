@@ -91,11 +91,13 @@ function SearchView() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="varsity jacket, GAT, or paste a link…"
+          aria-label="Search finds and store albums"
           className={`${inputClass} w-full sm:max-w-md`}
         />
         <select
           value={marketplace}
           onChange={(e) => setMarketplace(e.target.value as Marketplace | "all")}
+          aria-label="Filter by marketplace"
           className={inputClass}
         >
           {MARKETPLACES.map((m) => (

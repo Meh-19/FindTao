@@ -329,7 +329,7 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="Preferred agent" blurb="Used for the buy button, haul exports, and highlighted in the converter.">
-          <select value={prefs.agentId} onChange={(e) => setPrefs({ agentId: e.target.value })} className={selectClass}>
+          <select value={prefs.agentId} onChange={(e) => setPrefs({ agentId: e.target.value })} aria-label="Preferred agent" className={selectClass}>
             {ACTIVE_AGENTS.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -345,6 +345,7 @@ export default function SettingsPage() {
           <select
             value={prefs.currency}
             onChange={(e) => setPrefs({ currency: e.target.value as Currency })}
+            aria-label="Display currency"
             className={selectClass}
           >
             {CURRENCIES.map((c) => (
@@ -377,6 +378,7 @@ export default function SettingsPage() {
           <select
             value={prefs.activeHaulId}
             onChange={(e) => setPrefs({ activeHaulId: e.target.value })}
+            aria-label="Active haul"
             className={selectClass}
           >
             {hauls.map((h) => (

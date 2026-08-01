@@ -662,6 +662,7 @@ export function StoreView({ id }: { id: string }) {
                   value={albumQuery}
                   onChange={(e) => setAlbumQuery(e.target.value)}
                   placeholder="Search this store's albums…"
+                  aria-label="Search this store's albums"
                   className="w-full rounded-none border border-ink-500 bg-ink-900 py-2 pl-9 pr-3 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
                 />
               </div>
@@ -831,6 +832,7 @@ export function StoreView({ id }: { id: string }) {
                             }}
                             onBlur={() => savePrice(cartId!)}
                             placeholder="¥ price"
+                            aria-label={`Set price for ${album.name}`}
                             className="w-20 rounded-none border border-neon-500 bg-ink-950 px-1.5 py-1 text-xs text-mist-100 outline-none"
                           />
                         </div>

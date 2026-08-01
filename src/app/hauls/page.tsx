@@ -411,6 +411,7 @@ function HaulsView() {
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="New haul name — e.g. Summer fits"
+          aria-label="New haul name"
           className="flex-1 rounded-none border border-ink-500 bg-ink-800/80 px-4 py-2.5 text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500 sm:max-w-sm"
         />
         <button onClick={add} className="btn-glow flex items-center gap-1.5 rounded-none px-5 py-2.5 text-sm font-semibold text-white">

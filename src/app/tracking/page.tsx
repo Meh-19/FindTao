@@ -35,6 +35,7 @@ export default function TrackingPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="YT2612345678901234, 1Z…, EA123456789CN…"
+          aria-label="Tracking number"
           className="flex-1 rounded-none border border-ink-500 bg-ink-800/80 px-4 py-2.5 font-mono text-sm text-mist-100 placeholder-mist-500 outline-none transition-colors focus:border-neon-500"
         />
         <button onClick={add} className="btn-glow rounded-none px-5 py-2.5 text-sm font-semibold text-white">

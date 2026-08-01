@@ -74,6 +74,7 @@ function CollectionRow({ piece }: { piece: CollectionPiece }) {
           onBlur={() => updateCollectionPiece(piece.id, { review: review.trim() })}
           rows={2}
           placeholder="Quick review — fit, quality, would you buy again?"
+          aria-label={`Review for ${piece.title}`}
           className="mt-2 w-full resize-none rounded-none border border-ink-500 bg-ink-900 px-2.5 py-1.5 text-xs text-mist-200 placeholder-mist-500 outline-none focus:border-neon-500"
         />
       </div>
@@ -202,12 +203,12 @@ function ManualAdd() {
   return (
     <div className="space-y-2 border border-white/10 bg-ink-800/80 p-4">
       <p className="text-sm font-semibold text-mist-100">Add a piece</p>
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Name — e.g. Fyredwrld baby fit tee" className={inputClass} />
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Name — e.g. Fyredwrld baby fit tee" aria-label="Piece name" className={inputClass} />
       <div className="flex flex-col gap-2 sm:flex-row">
-        <input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Store (optional)" className={inputClass} />
-        <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="Size (e.g. L)" className={inputClass} />
+        <input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Store (optional)" aria-label="Store name" className={inputClass} />
+        <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="Size (e.g. L)" aria-label="Size" className={inputClass} />
       </div>
-      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Product link (optional)" className={inputClass} />
+      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Product link (optional)" aria-label="Product link" className={inputClass} />
       <label className="flex items-center gap-2 text-xs text-mist-400">
         Rating <StarRating value={rating} onChange={setRating} />
       </label>
@@ -216,6 +217,7 @@ function ManualAdd() {
         onChange={(e) => setReview(e.target.value)}
         rows={2}
         placeholder="Quick review (optional)"
+        aria-label="Quick review"
         className={`${inputClass} resize-none`}
       />
       <div className="flex gap-2">
