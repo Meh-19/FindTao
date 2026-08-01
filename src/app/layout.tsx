@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
@@ -14,6 +15,7 @@ import { Nav } from "@/components/Nav";
 import { CartPanel } from "@/components/CartPanel";
 import { Onboarding } from "@/components/Onboarding";
 import { Topbar, StatusBar, BottomNav, Toasts } from "@/components/Chrome";
+import { Analytics } from "@/components/Analytics";
 
 // `||` (not `??`) so an empty build arg — e.g. NEXT_PUBLIC_SITE_URL declared in
 // the Dockerfile but unset in Railway — falls back instead of making new URL("")
@@ -47,6 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
+        <Suspense>
+          <Analytics />
+        </Suspense>
         <div className="flow-bg fixed inset-x-0 top-0 z-50 h-0.5" />
         <ClerkProvider appearance={{ theme: dark }}>
           <StoreProvider>

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import "./globals.css";
+import { captureError } from "@/components/Analytics";
 
 /**
  * Root-level error boundary — only fires when the error happens in the root
@@ -19,6 +20,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
+    captureError(error);
   }, [error]);
 
   return (

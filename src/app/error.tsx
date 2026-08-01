@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, Home, RotateCcw } from "lucide-react";
+import { captureError } from "@/components/Analytics";
 
 /**
  * Route-level error boundary — catches a thrown error anywhere in a page or
@@ -18,6 +19,7 @@ export default function ErrorBoundary({
 }) {
   useEffect(() => {
     console.error(error);
+    captureError(error);
   }, [error]);
 
   return (
