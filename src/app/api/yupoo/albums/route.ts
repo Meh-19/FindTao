@@ -1,5 +1,6 @@
 import { isValidYupooHost, type YupooAlbum } from "@/lib/yupoo";
 import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { fetchUpstream } from "@/lib/fetchUpstream";
 
 export const dynamic = "force-dynamic";
 
@@ -71,10 +72,21 @@ export async function GET(request: Request) {
     // tab=gallery forces the flat all-albums listing on every store theme —
     // the default view on category/commerce themes only shows a per-collection
     // subset.
-    const res = await fetch(`https://${host}.x.yupoo.com/albums?tab=gallery&page=${page}`, {
+    const res = await fetchUpstream(`https://${host}.x.yupoo.com/albums?tab=gallery&page=${page}`, {
       headers: { "User-Agent": UA, Accept: "text/html" },
       next: { revalidate: 900 },
     });
+    if (!res) {
+      return Response.json({ error: "yupoo unreachable" }, { status: 504 });
+    }
+    if (res.status === 429) {
+      // Propagate the upstream rate-limit so the client backs off instead of
+      // treating it as a permanent failure.
+      return Response.json(
+        { error: "yupoo rate limited" },
+        { status: 429, headers: { "Retry-After": res.headers.get("Retry-After") ?? "5" } },
+      );
+    }
     if (!res.ok) {
       return Response.json({ error: `yupoo responded ${res.status}` }, { status: 502 });
     }

@@ -1,5 +1,6 @@
 import { isValidYupooHost } from "@/lib/yupoo";
 import { clientKey, rateLimit } from "@/lib/rateLimit";
+import { fetchUpstream } from "@/lib/fetchUpstream";
 
 export const dynamic = "force-dynamic";
 
@@ -37,19 +38,20 @@ export async function GET(request: Request) {
     return new Response("forbidden target", { status: 400 });
   }
 
-  try {
-    const res = await fetch(target, {
+  const res = await fetchUpstream(
+    target,
+    {
       headers: { "User-Agent": UA, Referer: `https://${host}.x.yupoo.com/` },
       next: { revalidate: 86400 },
-    });
-    if (!res.ok) return new Response("upstream error", { status: 502 });
-    return new Response(res.body, {
-      headers: {
-        "Content-Type": res.headers.get("content-type") ?? "image/jpeg",
-        "Cache-Control": "public, max-age=86400, immutable",
-      },
-    });
-  } catch {
-    return new Response("fetch failed", { status: 502 });
-  }
+    },
+    { timeoutMs: 12000 }, // images can be larger than an HTML page
+  );
+  if (!res) return new Response("upstream unreachable", { status: 504 });
+  if (!res.ok) return new Response("upstream error", { status: 502 });
+  return new Response(res.body, {
+    headers: {
+      "Content-Type": res.headers.get("content-type") ?? "image/jpeg",
+      "Cache-Control": "public, max-age=86400, immutable",
+    },
+  });
 }

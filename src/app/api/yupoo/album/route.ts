@@ -1,5 +1,6 @@
 import { isValidYupooHost } from "@/lib/yupoo";
 import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { fetchUpstream } from "@/lib/fetchUpstream";
 import {
   decodeEntities,
   extractDescription,
@@ -46,10 +47,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const res = await fetch(`https://${host}.x.yupoo.com/albums/${id}?uid=1`, {
+    const res = await fetchUpstream(`https://${host}.x.yupoo.com/albums/${id}?uid=1`, {
       headers: { "User-Agent": UA, Accept: "text/html" },
       next: { revalidate: 900 },
     });
+    if (!res) {
+      return Response.json({ error: "yupoo unreachable" }, { status: 504 });
+    }
+    if (res.status === 429) {
+      // Propagate the rate-limit + Retry-After — the client already backs off on it.
+      return Response.json(
+        { error: "yupoo rate limited" },
+        { status: 429, headers: { "Retry-After": res.headers.get("Retry-After") ?? "5" } },
+      );
+    }
     if (!res.ok) {
       return Response.json({ error: `yupoo responded ${res.status}` }, { status: 502 });
     }
