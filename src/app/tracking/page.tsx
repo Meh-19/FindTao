@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Package, X } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { detectCarrier, track17Url as track17 } from "@/lib/tracking";
+import { detectCarrier, track17Url as track17, TRACKERS } from "@/lib/tracking";
 
 export default function TrackingPage() {
   const { tracking, addTracking, removeTracking, toast, toastUndo, hydrated } = useStore();
@@ -61,12 +61,27 @@ export default function TrackingPage() {
                 <p className="text-xs text-mist-500">
                   {p.carrier === "Unknown" ? "Carrier auto-detected on 17TRACK" : p.carrier}
                 </p>
+                {/* Different aggregators cover different carriers better — offer a few. */}
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-mist-500">
+                  <span className="text-mist-600">also:</span>
+                  {TRACKERS.slice(1).map((t) => (
+                    <a
+                      key={t.id}
+                      href={t.url(p.number)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-ink-500 transition-colors hover:text-neon-300"
+                    >
+                      {t.label}
+                    </a>
+                  ))}
+                </p>
               </div>
               <a
                 href={track17(p.number)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-glow flex items-center gap-1 rounded-none px-3 py-1.5 text-xs font-semibold text-white"
+                className="btn-glow flex shrink-0 items-center gap-1 self-start rounded-none px-3 py-1.5 text-xs font-semibold text-white"
               >
                 17TRACK <ExternalLink size={11} aria-hidden="true" />
               </a>

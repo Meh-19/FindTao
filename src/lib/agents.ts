@@ -113,6 +113,50 @@ export const AGENTS: AgentConfig[] = [
     active: false,
     note: "Largely defunct since 2024 — flip active if it returns.",
   },
+
+  // ── Newer agents. The `?url=`/`productUrl=` ones pass the full canonical URL
+  //    (the agent resolves it), so they're robust across marketplaces; the
+  //    shop_type ones share the CNFans/Mulebuy platform format. Formats captured
+  //    from rep.tools' live converter — confirm against a real product page. ──
+  {
+    id: "joyagoo",
+    name: "Joyagoo",
+    homepage: "https://joyagoo.com",
+    templates: {
+      taobao: "https://joyagoo.com/product/?shop_type=taobao&id={itemId}",
+      weidian: "https://joyagoo.com/product/?shop_type=weidian&id={itemId}",
+      "1688": "https://joyagoo.com/product/?shop_type=ali_1688&id={itemId}",
+    },
+    active: true,
+    note: "Shares the CNFans/Mulebuy shop_type format; verified live on rep.tools.",
+  },
+  {
+    id: "itaobuy",
+    name: "ItaoBuy",
+    homepage: "https://www.itaobuy.com",
+    templates: { all: "https://www.itaobuy.com/product-detail?url={encodedRawUrl}" },
+    active: true,
+  },
+  {
+    id: "bbdbuy",
+    name: "BBDBuy",
+    homepage: "https://bbdbuy.com",
+    templates: { all: "https://bbdbuy.com/index/item/index.html?tp=taobao&tid=&searchlang=en&url={encodedRawUrl}" },
+    active: true,
+  },
+  {
+    id: "pikobuy",
+    name: "PikoBuy",
+    homepage: "https://www.pikobuy.com",
+    templates: { all: "https://www.pikobuy.com/product/detail?productUrl={encodedRawUrl}" },
+    active: true,
+  },
+  // Other live agents seen on rep.tools (acbuy, hoobuy, oopbuy, ootdbuy,
+  // lovegobuy, hipobuy, cnshopper, …) use id-only paths whose per-marketplace
+  // shape couldn't be confirmed. They're intentionally omitted rather than
+  // shipped as guesses — every registered agent must round-trip (see
+  // links.test.ts), which an unconfirmed id-only template can't. Add them here
+  // once verified against a live product page.
 ];
 
 export const ACTIVE_AGENTS = AGENTS.filter((a) => a.active);

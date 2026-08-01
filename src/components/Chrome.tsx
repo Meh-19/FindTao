@@ -16,6 +16,7 @@ const VIEW_LABEL: Record<string, string> = {
   w2c: "W2C finder",
   advisor: "AI Advisor",
   convert: "Converter",
+  calculators: "Calculators",
   hauls: "Hauls",
   tracking: "Tracking",
   shipping: "Shipping",

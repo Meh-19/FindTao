@@ -149,7 +149,7 @@ export function parseLink(input: string, depth = 0): ParsedLink | null {
   }
 
   // Agent links, family 1: whole marketplace URL in a query param.
-  const wrapped = getParam(params, "url", "productLink", "goodsUrl", "link");
+  const wrapped = getParam(params, "url", "productLink", "productUrl", "goodsUrl", "link");
   if (wrapped) {
     const inner = parseWrapped(wrapped, depth);
     if (inner) return inner;
@@ -158,7 +158,7 @@ export function parseLink(input: string, depth = 0): ParsedLink | null {
   // Sugargoo-style: the query lives inside the hash fragment.
   if (url.hash.includes("?")) {
     const hashParams = new URLSearchParams(url.hash.slice(url.hash.indexOf("?") + 1));
-    const hashWrapped = getParam(hashParams, "url", "productLink", "goodsUrl", "link");
+    const hashWrapped = getParam(hashParams, "url", "productLink", "productUrl", "goodsUrl", "link");
     if (hashWrapped) {
       const inner = parseWrapped(hashWrapped, depth);
       if (inner) return inner;

@@ -16,6 +16,7 @@ const STATIC_PATHS = [
   "/w2c",
   "/advisor",
   "/convert",
+  "/calculators",
   "/privacy",
   "/terms",
 ];

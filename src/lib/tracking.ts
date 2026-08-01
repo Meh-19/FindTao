@@ -19,3 +19,14 @@ export function detectCarrier(num: string): string {
 }
 
 export const track17Url = (num: string) => `https://t.17track.net/en#nums=${encodeURIComponent(num)}`;
+
+/**
+ * Alternate universal trackers — no API, just deep-links. Different aggregators
+ * cover different regional carriers better, so offering a few beats betting on one.
+ */
+export const TRACKERS: { id: string; label: string; url: (num: string) => string }[] = [
+  { id: "17track", label: "17TRACK", url: track17Url },
+  { id: "aftership", label: "AfterShip", url: (n) => `https://www.aftership.com/track/${encodeURIComponent(n)}` },
+  { id: "parcelsapp", label: "Parcels", url: (n) => `https://parcelsapp.com/en/tracking/${encodeURIComponent(n)}` },
+  { id: "4tracking", label: "4Tracking", url: (n) => `https://www.4tracking.net/search?nums=${encodeURIComponent(n)}` },
+];
