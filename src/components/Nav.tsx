@@ -266,7 +266,7 @@ export function Nav() {
   return (
     <>
       {/* Mobile top bar — hamburger opens the full drawer */}
-      <header className="sticky top-0 z-20 flex w-full items-center justify-between border-b border-white/5 bg-ink-900/80 px-4 py-3 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-20 flex w-full items-center justify-between border-b border-white/5 bg-ink-900/80 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur md:hidden">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setDrawerOpen(true)}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
@@ -43,6 +43,25 @@ export const metadata: Metadata = {
     title: "FindTao",
     description: DESCRIPTION,
   },
+  // Installed-to-home-screen behaviour on iOS: run full-screen (no Safari
+  // chrome) with a translucent status bar so the app reaches edge-to-edge.
+  appleWebApp: {
+    capable: true,
+    title: "FindTao",
+    statusBarStyle: "black-translucent",
+  },
+  // Next emits `mobile-web-app-capable` (honoured by iOS 16.4+); add the legacy
+  // apple-specific tag too so older iOS also launches full-screen.
+  other: { "apple-mobile-web-app-capable": "yes" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#050505",
+  width: "device-width",
+  initialScale: 1,
+  // Let content extend into the Dynamic Island / home-indicator area; the app
+  // pads for it with env(safe-area-inset-*).
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
